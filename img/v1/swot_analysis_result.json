@@ -1,0 +1,108 @@
+{
+  "SWOT_Analysis": {
+    "Strengths": [
+      {
+        "topic": "Ambiance & Aesthetic Appeal",
+        "description": "Quán có không gian rộng rãi, trang trí đẹp mắt và độc đáo, tạo cảm giác thoải mái, lãng mạn, rất phù hợp cho việc thư giãn và chụp ảnh. Sự nỗ lực trang trí theo mùa cũng được đánh giá cao, góp phần tạo nên trải nghiệm đặc biệt cho khách hàng.",
+        "impact": "High"
+      },
+      {
+        "topic": "Chất lượng dịch vụ và thái độ nhân viên",
+        "description": "Nhân viên được khen ngợi là thân thiện, nhiệt tình, chu đáo và hỗ trợ khách hàng vượt mong đợi. Điều này tạo ra một trải nghiệm tích cực, khiến khách hàng cảm thấy được chào đón và được chăm sóc tốt.",
+        "impact": "High"
+      },
+      {
+        "topic": "Đa dạng và chất lượng sản phẩm (Đồ uống & Topping)",
+        "description": "Menu đa dạng với nhiều lựa chọn cà phê và trà, đặc biệt là các dòng cà phê đặc sản với nốt hương phức tạp (ví dụ: Peach-Orange) và trà Ô Long được mô tả với hương vị tinh tế (nhài, long nhãn, vani). Các loại topping thủ công, không chất bảo quản (Thạch Xỉu Vani, Trân Châu Gạo Rang) cũng là điểm cộng về chất lượng và sự độc đáo, thể hiện sự đầu tư vào nguyên liệu và công thức.",
+        "impact": "High"
+      },
+      {
+        "topic": "Sự đổi mới và mở rộng sản phẩm",
+        "description": "Thường xuyên giới thiệu các bộ sưu tập mới (TEARAMISU, Pomêly), sản phẩm độc đáo (Trà Vỏ Cà Phê), cùng các dòng sản phẩm đóng chai (Plus series) và dụng cụ pha chế tại nhà (Drip Bag, Trà Hạt, Cà Phê Bột), thể hiện khả năng sáng tạo và mở rộng kênh bán hàng, đáp ứng nhu cầu đa dạng của khách hàng.",
+        "impact": "Medium"
+      },
+      {
+        "topic": "Cơ sở vật chất tiện lợi",
+        "description": "Quán có chỗ đậu xe máy rộng rãi, mang lại sự thuận tiện đáng kể cho khách hàng. Một số địa điểm hoạt động 24h cũng là điểm mạnh về tính linh hoạt.",
+        "impact": "Medium"
+      }
+    ],
+    "Weaknesses": [
+      {
+        "topic": "Chất lượng đồ uống không đồng đều",
+        "description": "Nhiều đánh giá tiêu cực về chất lượng đồ uống như 'không ngon', 'vị chua' (smoothie), 'quá ít' hoặc 'không đáng tiền'. Sự thiếu nhất quán này có thể làm giảm niềm tin và sự hài lòng của khách hàng, đặc biệt là đối với các sản phẩm được định vị cao cấp.",
+        "root_cause": "Kiểm soát chất lượng nguyên liệu, quy trình pha chế hoặc đào tạo nhân viên chưa chặt chẽ cho toàn bộ menu.",
+        "impact": "High"
+      },
+      {
+        "topic": "Giá cả cao và không tương xứng với giá trị",
+        "description": "Mặc dù một số khách hàng thấy giá chấp nhận được, nhiều người khác lại cho rằng giá 'quá đắt', 'không đáng tiền' so với chất lượng và lượng đồ uống nhận được. Có phản ánh về việc nhân viên tự ý thêm món và tính phí.",
+        "root_cause": "Định giá cao cấp nhưng không phải lúc nào cũng đi kèm với trải nghiệm sản phẩm và dịch vụ tương xứng, hoặc truyền thông giá trị chưa hiệu quả.",
+        "impact": "High"
+      },
+      {
+        "topic": "Dịch vụ khách hàng có vấn đề cá biệt",
+        "description": "Dù được khen ngợi chung, vẫn có những trường hợp nhân viên 'không thân thiện hay niềm nở', thời gian chờ đồ uống 'khá lâu' và những sự cố tiêu cực như cố tình thêm phí. Những sự cố này ảnh hưởng tiêu cực đến trải nghiệm chung.",
+        "root_cause": "Thiếu sót trong đào tạo toàn diện nhân viên, giám sát không đầy đủ hoặc không có quy trình xử lý tình huống phát sinh rõ ràng.",
+        "impact": "Medium"
+      },
+      {
+        "topic": "Vấn đề về cơ sở vật chất và bảo trì",
+        "description": "Khách hàng phản ánh toilet 'hơi cũ' và các vấn đề về tiện ích khác (ví dụ: không thể xem bóng đá khi quán quảng cáo). Việc tháo dỡ đồ trang trí mùa lễ hội quá sớm cũng làm giảm trải nghiệm không gian.",
+        "root_cause": "Ngân sách bảo trì chưa đủ, thiếu quy trình kiểm tra định kỳ hoặc truyền thông nội bộ về việc duy trì không gian chưa hiệu quả.",
+        "impact": "Low"
+      },
+      {
+        "topic": "Giới hạn giao hàng cho đồ uống lạnh",
+        "description": "Thông báo 'Sản phẩm có thể bị tan với khoảng cách xa trên 3,5km' cho đồ uống đá xay/lạnh hạn chế phạm vi giao hàng cho một số sản phẩm phổ biến, có khả năng bỏ lỡ doanh thu và gây thất vọng cho khách hàng ở xa.",
+        "root_cause": "Hạn chế về bao bì giữ nhiệt, phương tiện vận chuyển hoặc chính sách giao hàng của bên thứ ba.",
+        "impact": "Medium"
+      }
+    ],
+    "Opportunities": [
+      {
+        "topic": "Tối ưu hóa chiến lược giá và khuyến mãi",
+        "description": "Đối thủ cạnh tranh như Highlands áp dụng các chương trình khuyến mãi mạnh mẽ (mua 1 tặng 1, giảm giá ship/món đa dạng). MY_SHOP có thể học hỏi để thu hút khách hàng nhạy cảm về giá, bằng cách thiết kế các combo hoặc ưu đãi có giá trị cao, đồng thời cân bằng với định vị thương hiệu cao cấp.",
+        "action_idea": "Triển khai các chương trình combo đồ uống + đồ ăn nhẹ, xây dựng chương trình khách hàng thân thiết, hoặc ưu đãi theo khung giờ/ngày cụ thể."
+      },
+      {
+        "topic": "Mở rộng danh mục đồ ăn nhẹ/bánh ngọt",
+        "description": "Các đối thủ cung cấp nhiều loại đồ ăn kèm (bánh mì que, croissant, bánh chuối, su kem, các loại bánh phô mai) với giá phải chăng. MY_SHOP có thể tăng doanh thu và thời gian lưu trú của khách hàng bằng cách bổ sung một số món ăn nhẹ đặc trưng, chất lượng cao, phù hợp với đồ uống.",
+        "action_idea": "Nghiên cứu và phát triển menu bánh ngọt/món mặn đặc trưng, có thể hợp tác với các nhà cung cấp uy tín để đảm bảo chất lượng."
+      },
+      {
+        "topic": "Cải thiện trải nghiệm giao hàng cho đồ uống lạnh",
+        "description": "Vấn đề đồ uống lạnh bị tan chảy khi giao hàng xa là một điểm yếu có thể được biến thành cơ hội. Cải thiện bao bì hoặc tối ưu hóa logistics giao hàng sẽ mở rộng thị trường và nâng cao sự hài lòng cho khách hàng đặt mang về.",
+        "action_idea": "Đầu tư vào bao bì giữ nhiệt tốt hơn, đàm phán với đối tác giao hàng về quy trình vận chuyển đồ lạnh, hoặc thiết lập bán kính giao hàng tối ưu cho từng loại sản phẩm."
+      },
+      {
+        "topic": "Truyền thông mạnh mẽ hơn về giá trị 'đặc sản' và nguyên liệu",
+        "description": "Với nguồn gốc nguyên liệu đặc biệt và các nốt hương phức tạp trong sản phẩm, MY_SHOP có cơ hội truyền thông sâu hơn về 'câu chuyện' và giá trị cốt lõi của mình để giải thích cho mức giá, tạo sự khác biệt rõ rệt hơn so với đối thủ.",
+        "action_idea": "Tạo nội dung marketing kể chuyện về nguồn gốc cà phê/trà, quy trình chế biến, lợi ích của nguyên liệu tự nhiên; tổ chức workshop trải nghiệm."
+      }
+    ],
+    "Threats": [
+      {
+        "topic": "Chiến lược giá và khuyến mãi cạnh tranh của đối thủ",
+        "description": "Các chuỗi lớn như Highlands liên tục có các chương trình giảm giá sâu (Mua 1 tặng 1, mã giảm giá cố định/phần trăm trên món/phí vận chuyển). Điều này tạo áp lực lớn lên MY_SHOP, đặc biệt khi khách hàng có thể cảm thấy giá của MY_SHOP là 'đắt'.",
+        "risk_level": "High"
+      },
+      {
+        "topic": "Đa dạng hóa menu và sự đổi mới liên tục của đối thủ",
+        "description": "Đối thủ cạnh tranh có danh mục sản phẩm đồ uống và đồ ăn kèm rất rộng (từ cà phê truyền thống, trà sữa, trà trái cây đến bánh mì, bánh ngọt đa dạng). Họ cũng liên tục ra mắt các sản phẩm mới, hương vị độc đáo (Mơ Mận, Sen Vàng), đáp ứng nhiều phân khúc khách hàng và sở thích khác nhau, gây khó khăn cho MY_SHOP trong việc duy trì sự nổi bật.",
+        "risk_level": "High"
+      },
+      {
+        "topic": "Mạng lưới cửa hàng rộng khắp và độ phủ thương hiệu mạnh",
+        "description": "Sự hiện diện rộng rãi của các chuỗi như Highlands, Starbucks, Phúc Long, Katinat trên khắp các quận/huyện và các nền tảng giao hàng mang lại lợi thế về sự tiện lợi và quen thuộc. Điều này giúp họ tiếp cận và phục vụ lượng lớn khách hàng một cách dễ dàng, gây áp lực cạnh tranh về thị phần và khả năng tiếp cận.",
+        "risk_level": "Medium"
+      },
+      {
+        "topic": "Lòng trung thành của khách hàng đối với các sản phẩm chủ lực của đối thủ",
+        "description": "Các đối thủ lớn đã xây dựng được tệp khách hàng trung thành với các sản phẩm đặc trưng của họ (ví dụ: Phin Sữa Đá của Highlands, Trà Sữa Phúc Long). Việc chuyển đổi những khách hàng này sang MY_SHOP sẽ đòi hỏi nỗ lực lớn trong việc chứng minh giá trị và sự vượt trội về trải nghiệm.",
+        "risk_level": "Medium"
+      }
+    ]
+  },
+  "Executive_Summary": "MY_SHOP nổi bật với không gian đẹp, dịch vụ nhân viên tận tâm và menu đồ uống độc đáo, chất lượng. Tuy nhiên, quán đang đối mặt với thách thức về chất lượng đồ uống không đồng đều, giá cả và dịch vụ chưa nhất quán. Cơ hội lớn nằm ở việc tối ưu hóa chiến lược giá, mở rộng menu đồ ăn nhẹ, và cải thiện logistics giao hàng. Trong khi đó, các đối thủ cạnh tranh mạnh về khuyến mãi, đa dạng sản phẩm và độ phủ thị trường đặt ra những thách thức đáng kể."
+}
