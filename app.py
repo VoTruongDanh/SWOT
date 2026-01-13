@@ -63,31 +63,89 @@ def main():
     
     # Sidebar - Hướng dẫn
     with st.sidebar:
-        st.header("📖 Hướng dẫn sử dụng")
-        st.markdown("""
-        1. **Chuẩn bị file dữ liệu:**
-           - File Excel/CSV với 2 cột:
-             - Cột chứa nội dung đánh giá (Review/Đánh giá)
-             - Cột chứa nguồn (Source/Nguồn) với giá trị:
-               - `MY_SHOP` hoặc `CỦA MÌNH` - Đánh giá về quán của bạn
-               - `COMPETITOR` hoặc `ĐỐI THỦ` - Đánh giá về đối thủ
-        
-        2. **Upload file:**
-           - Nhấn nút "Browse files" để chọn file
-           - Hệ thống sẽ tự động đọc và làm sạch dữ liệu
-        
-        3. **Xem kết quả:**
-           - AI sẽ phân tích và tạo báo cáo SWOT
-           - Xem biểu đồ và bảng chi tiết
-        """)
+        with st.expander("📖 Hướng dẫn sử dụng", expanded=False):
+            st.markdown("""
+            ### 1. Chuẩn bị file dữ liệu
+            
+            **Tùy chọn 1: Có cột Source rõ ràng**
+            - **Cột đánh giá**: `Review`, `Đánh giá`, `Comment`, `Content`, v.v.
+            - **Cột Source**: 
+              - `MY_SHOP` hoặc `CỦA MÌNH` - Đánh giá về quán của bạn
+              - `COMPETITOR` hoặc `ĐỐI THỦ` - Đánh giá về đối thủ
+            
+            **Tùy chọn 2: Không có cột Source**
+            - Hệ thống **tự động phát hiện từ tên file**:
+              - `my_shop`, `myshop`, `của mình` → MY_SHOP
+              - `competitor`, `đối thủ`, `starbucks`, `highlands` → COMPETITOR
+              - Không phát hiện được → Mặc định COMPETITOR
+            
+            **Cột bổ sung (tùy chọn):**
+            - `Price`, `Rating`, `Menu`, `Date`, `User`
+            
+            ### 2. Upload file
+            
+            - Nhấn **"Browse files"** hoặc kéo thả file
+            - **Có thể upload nhiều file cùng lúc**
+            - Hệ thống tự động phát hiện và làm sạch dữ liệu
+            
+            ### 3. Chọn chế độ phân tích
+            
+            **Tổng hợp**: 1 báo cáo SWOT gộp chung
+            
+            **Phân tích riêng**: 2 cột SWOT riêng biệt
+            - Cột trái: SWOT của mình (S, W, O, T)
+            - Cột phải: SWOT của đối thủ (S, W, O, T)
+            
+            ### 4. Xem kết quả
+            
+            - 📝 Tóm tắt điều hành
+            - 📈 Biểu đồ phân bố SWOT
+            - 📊 Bảng chi tiết từng nhóm
+            
+            ### 5. Export kết quả
+            
+            - 📊 **Excel**: Báo cáo đầy đủ với biểu đồ (7 sheets)
+            - 📥 **JSON**: Dữ liệu thô
+            """)
         
         st.markdown("---")
-        st.markdown("### ⚙️ Cài đặt")
-        st.info("""
-        Đảm bảo bạn đã:
-        1. Cài đặt dependencies: `pip install -r requirements.txt`
-        2. Tạo file `.env` với `GEMINI_API_KEY=your_api_key`
-        """)
+        
+        with st.expander("⚙️ Cài đặt", expanded=False):
+            st.markdown("""
+            **Yêu cầu:**
+            - Python 3.10+
+            - Google Gemini API Key
+            
+            **Cài đặt:**
+            ```bash
+            pip install -r requirements.txt
+            ```
+            
+            **Cấu hình API Key:**
+            
+            **Khi chạy local:**
+            - Tạo file `.env`:
+            ```
+            GEMINI_API_KEY=your_api_key_here
+            ```
+            - Hoặc tạo file `.streamlit/secrets.toml`:
+            ```
+            GEMINI_API_KEY = "your_api_key_here"
+            ```
+            
+            **Khi deploy lên Streamlit Cloud:**
+            1. Vào Settings > Secrets trong Streamlit Cloud
+            2. Thêm secret:
+            ```
+            GEMINI_API_KEY = "your_api_key_here"
+            ```
+            
+            **Lưu ý:** 
+            - File `.env` phải UTF-8 (không BOM)
+            - Không commit API key lên Git
+            
+            Lấy API key: https://makersuite.google.com/app/apikey
+            """)
     
     # Upload file
     st.header("📁 Upload dữ liệu")
@@ -130,6 +188,10 @@ def main():
             if file_info:
                 st.session_state['file_info'] = file_info
             
+            # Xóa file_summaries cũ nếu có
+            if 'file_summaries' in st.session_state:
+                st.session_state['file_summaries'] = []
+            
             # Tổng hợp tất cả dữ liệu
             if all_dataframes:
                 status_text.text("🔄 Đang tổng hợp dữ liệu từ tất cả các file...")
@@ -146,8 +208,54 @@ def main():
                 
                 st.success(f"✅ Đã tải thành công {len(df)} đánh giá từ {len(uploaded_files)} file(s)")
                 
+                # Hiển thị thông tin file trong một expander gọn gàng
+                file_summaries = st.session_state.get('file_summaries', [])
+                if file_summaries:
+                    with st.expander(f"📋 Chi tiết {len(file_summaries)} file đã tải", expanded=False):
+                        # Tạo bảng tóm tắt
+                        summary_data = []
+                        for fs in file_summaries:
+                            review_info = f"{fs['review_cols_count']} cột" if fs['review_cols_count'] > 1 else "1 cột"
+                            additional_info = f"{fs['additional_cols_count']} cột bổ sung" if fs['additional_cols_count'] > 0 else "-"
+                            summary_data.append({
+                                '📄 Tên file': fs['name'],
+                                '📊 Cột đánh giá': review_info,
+                                '🏷️ Source': fs['source'],
+                                '➕ Cột bổ sung': additional_info if additional_info else '-'
+                            })
+                        
+                        summary_df = pd.DataFrame(summary_data)
+                        st.dataframe(summary_df, use_container_width=True, hide_index=True)
+                        
+                        # Hiển thị chi tiết từng file trong expander con
+                        st.markdown("---")
+                        st.markdown("### 📄 Chi tiết từng file")
+                        for fs in file_summaries:
+                            with st.expander(f"📄 {fs['name']}", expanded=False):
+                                info_text = f"✅ **Đã phát hiện:**\n"
+                                info_text += f"- Cột đánh giá chính: **{fs['review_col']}**\n"
+                                
+                                if fs.get('combined_cols_info'):
+                                    info_text += f"- ℹ️ Đã kết hợp {fs['combined_cols_info']['count']} cột đánh giá: {', '.join(fs['combined_cols_info']['cols'])}\n"
+                                elif fs.get('other_cols'):
+                                    info_text += f"- Các cột đánh giá khác: {', '.join(fs['other_cols'])}\n"
+                                
+                                info_text += f"- Cột nguồn: **{fs['source']}**\n"
+                                
+                                if fs.get('additional_cols'):
+                                    info_text += f"- **Các thông tin bổ sung:**\n"
+                                    for key, col in fs['additional_cols'].items():
+                                        info_text += f"  • {key.upper()}: {col}\n"
+                                
+                                info_text += f"- Tổng số cột trong file: {fs['total_cols']}"
+                                st.markdown(info_text)
+                                
+                                if fs.get('has_warning'):
+                                    st.warning(f"⚠️ Không tìm thấy cột phân loại nguồn (Source) và không phát hiện shop từ tên file.")
+                                    st.info(f"💡 File sẽ được phân loại là **COMPETITOR** (đối thủ). Nếu đây là dữ liệu về quán của bạn, vui lòng đổi tên file có chứa 'my_shop' hoặc thêm cột Source vào file.")
+                
                 # Hiển thị thống kê từng file (tối ưu)
-                with st.expander(f"📊 Thống kê từng file ({len(file_info)} file)", expanded=True):
+                with st.expander(f"📊 Thống kê từng file ({len(file_info)} file)", expanded=False):
                     stats_df = pd.DataFrame(file_info)
                     
                     # Tính tổng
@@ -270,8 +378,8 @@ def main():
                     
                     try:
                         if "Phân tích riêng" in analysis_mode:
-                            # Phân tích riêng: SWOT của mình và SWOT của đối thủ
-                            status_text.text("🤖 AI đang phân tích SWOT của mình và đối thủ riêng biệt...")
+                            # Phân tích riêng: SWOT đầy đủ của mình và SWOT đầy đủ của đối thủ
+                            status_text.text("🤖 AI đang phân tích SWOT đầy đủ của mình và đối thủ riêng biệt...")
                             progress_bar.progress(10)
                             
                             # Tách dữ liệu
@@ -280,32 +388,40 @@ def main():
                             
                             results = {}
                             
-                            # Phân tích MY_SHOP (chỉ Strengths và Weaknesses)
+                            # Phân tích MY_SHOP (đầy đủ SWOT từ đánh giá về mình)
                             if my_shop_data:
-                                status_text.text(f"📊 Đang phân tích SWOT của mình ({len(my_shop_data)} reviews)...")
+                                status_text.text(f"📊 Đang phân tích SWOT đầy đủ của mình ({len(my_shop_data)} reviews)...")
                                 progress_bar.progress(30)
-                                my_shop_result = analyze_swot_with_gemini(my_shop_data, analysis_type='MY_SHOP_ONLY')
+                                my_shop_result = analyze_swot_with_gemini(my_shop_data, analysis_type='FULL')
                                 results['my_shop'] = my_shop_result
                             
-                            # Phân tích COMPETITOR (chỉ Opportunities và Threats)
+                            # Phân tích COMPETITOR (đầy đủ SWOT từ đánh giá về đối thủ)
                             if competitor_data:
-                                status_text.text(f"📊 Đang phân tích SWOT của đối thủ ({len(competitor_data)} reviews)...")
+                                status_text.text(f"📊 Đang phân tích SWOT đầy đủ của đối thủ ({len(competitor_data)} reviews)...")
                                 progress_bar.progress(60)
-                                competitor_result = analyze_swot_with_gemini(competitor_data, analysis_type='COMPETITOR_ONLY')
+                                competitor_result = analyze_swot_with_gemini(competitor_data, analysis_type='FULL')
                                 results['competitor'] = competitor_result
                             
-                            # Kết hợp kết quả
+                            # Kết hợp kết quả - giữ nguyên cả 2 SWOT riêng biệt
                             progress_bar.progress(80)
                             status_text.text("🔄 Đang tổng hợp kết quả...")
                             
                             combined_result = {
                                 "SWOT_Analysis": {
-                                    "Strengths": results.get('my_shop', {}).get('SWOT_Analysis', {}).get('Strengths', []),
-                                    "Weaknesses": results.get('my_shop', {}).get('SWOT_Analysis', {}).get('Weaknesses', []),
-                                    "Opportunities": results.get('competitor', {}).get('SWOT_Analysis', {}).get('Opportunities', []),
-                                    "Threats": results.get('competitor', {}).get('SWOT_Analysis', {}).get('Threats', [])
+                                    # Gộp tất cả để hiển thị biểu đồ tổng hợp
+                                    "Strengths": results.get('my_shop', {}).get('SWOT_Analysis', {}).get('Strengths', []) + 
+                                                results.get('competitor', {}).get('SWOT_Analysis', {}).get('Strengths', []),
+                                    "Weaknesses": results.get('my_shop', {}).get('SWOT_Analysis', {}).get('Weaknesses', []) + 
+                                                 results.get('competitor', {}).get('SWOT_Analysis', {}).get('Weaknesses', []),
+                                    "Opportunities": results.get('my_shop', {}).get('SWOT_Analysis', {}).get('Opportunities', []) + 
+                                                     results.get('competitor', {}).get('SWOT_Analysis', {}).get('Opportunities', []),
+                                    "Threats": results.get('my_shop', {}).get('SWOT_Analysis', {}).get('Threats', []) + 
+                                              results.get('competitor', {}).get('SWOT_Analysis', {}).get('Threats', [])
                                 },
                                 "Executive_Summary": "",
+                                # Lưu SWOT riêng biệt để hiển thị 2 cột
+                                "My_Shop_SWOT": results.get('my_shop', {}).get('SWOT_Analysis', {}),
+                                "Competitor_SWOT": results.get('competitor', {}).get('SWOT_Analysis', {}),
                                 "My_Shop_Summary": results.get('my_shop', {}).get('Executive_Summary', ''),
                                 "Competitor_Summary": results.get('competitor', {}).get('Executive_Summary', '')
                             }
@@ -387,55 +503,170 @@ def main():
         
         # Chi tiết từng nhóm SWOT
         swot = result.get("SWOT_Analysis", {})
+        analysis_mode = st.session_state.get('analysis_mode', 'combined')
         
-        # Strengths
-        st.markdown("---")
-        st.subheader("💪 Strengths (Điểm mạnh)")
-        strengths = format_swot_table_data(result, "Strengths")
-        if strengths:
-            st.dataframe(
-                pd.DataFrame(strengths),
-                use_container_width=True,
-                hide_index=True
-            )
+        if analysis_mode == 'separate':
+            # Hiển thị 2 cột: SWOT đầy đủ của mình và SWOT đầy đủ của đối thủ
+            st.markdown("---")
+            st.subheader("📊 SWOT Phân tích riêng biệt")
+            
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                st.markdown("### 🏪 SWOT CỦA MÌNH")
+                
+                my_shop_swot = result.get("My_Shop_SWOT", {})
+                
+                # Strengths
+                st.markdown("#### 💪 Strengths (Điểm mạnh)")
+                my_strengths = my_shop_swot.get("Strengths", [])
+                if my_strengths:
+                    st.dataframe(
+                        pd.DataFrame(my_strengths),
+                        use_container_width=True,
+                        hide_index=True
+                    )
+                else:
+                    st.info("Không có điểm mạnh nào được xác định")
+                
+                # Weaknesses
+                st.markdown("#### ⚠️ Weaknesses (Điểm yếu)")
+                my_weaknesses = my_shop_swot.get("Weaknesses", [])
+                if my_weaknesses:
+                    st.dataframe(
+                        pd.DataFrame(my_weaknesses),
+                        use_container_width=True,
+                        hide_index=True
+                    )
+                else:
+                    st.info("Không có điểm yếu nào được xác định")
+                
+                # Opportunities
+                st.markdown("#### 🎯 Opportunities (Cơ hội)")
+                my_opportunities = my_shop_swot.get("Opportunities", [])
+                if my_opportunities:
+                    st.dataframe(
+                        pd.DataFrame(my_opportunities),
+                        use_container_width=True,
+                        hide_index=True
+                    )
+                else:
+                    st.info("Không có cơ hội nào được xác định")
+                
+                # Threats
+                st.markdown("#### 🔥 Threats (Thách thức)")
+                my_threats = my_shop_swot.get("Threats", [])
+                if my_threats:
+                    st.dataframe(
+                        pd.DataFrame(my_threats),
+                        use_container_width=True,
+                        hide_index=True
+                    )
+                else:
+                    st.info("Không có thách thức nào được xác định")
+            
+            with col2:
+                st.markdown("### ⚔️ SWOT CỦA ĐỐI THỦ")
+                
+                competitor_swot = result.get("Competitor_SWOT", {})
+                
+                # Strengths
+                st.markdown("#### 💪 Strengths (Điểm mạnh)")
+                comp_strengths = competitor_swot.get("Strengths", [])
+                if comp_strengths:
+                    st.dataframe(
+                        pd.DataFrame(comp_strengths),
+                        use_container_width=True,
+                        hide_index=True
+                    )
+                else:
+                    st.info("Không có điểm mạnh nào được xác định")
+                
+                # Weaknesses
+                st.markdown("#### ⚠️ Weaknesses (Điểm yếu)")
+                comp_weaknesses = competitor_swot.get("Weaknesses", [])
+                if comp_weaknesses:
+                    st.dataframe(
+                        pd.DataFrame(comp_weaknesses),
+                        use_container_width=True,
+                        hide_index=True
+                    )
+                else:
+                    st.info("Không có điểm yếu nào được xác định")
+                
+                # Opportunities
+                st.markdown("#### 🎯 Opportunities (Cơ hội)")
+                comp_opportunities = competitor_swot.get("Opportunities", [])
+                if comp_opportunities:
+                    st.dataframe(
+                        pd.DataFrame(comp_opportunities),
+                        use_container_width=True,
+                        hide_index=True
+                    )
+                else:
+                    st.info("Không có cơ hội nào được xác định")
+                
+                # Threats
+                st.markdown("#### 🔥 Threats (Thách thức)")
+                comp_threats = competitor_swot.get("Threats", [])
+                if comp_threats:
+                    st.dataframe(
+                        pd.DataFrame(comp_threats),
+                        use_container_width=True,
+                        hide_index=True
+                    )
+                else:
+                    st.info("Không có thách thức nào được xác định")
         else:
-            st.info("Không có điểm mạnh nào được xác định")
-        
-        # Weaknesses
-        st.subheader("⚠️ Weaknesses (Điểm yếu)")
-        weaknesses = format_swot_table_data(result, "Weaknesses")
-        if weaknesses:
-            st.dataframe(
-                pd.DataFrame(weaknesses),
-                use_container_width=True,
-                hide_index=True
-            )
-        else:
-            st.info("Không có điểm yếu nào được xác định")
-        
-        # Opportunities
-        st.subheader("🎯 Opportunities (Cơ hội)")
-        opportunities = format_swot_table_data(result, "Opportunities")
-        if opportunities:
-            st.dataframe(
-                pd.DataFrame(opportunities),
-                use_container_width=True,
-                hide_index=True
-            )
-        else:
-            st.info("Không có cơ hội nào được xác định")
-        
-        # Threats
-        st.subheader("🔥 Threats (Thách thức)")
-        threats = format_swot_table_data(result, "Threats")
-        if threats:
-            st.dataframe(
-                pd.DataFrame(threats),
-                use_container_width=True,
-                hide_index=True
-            )
-        else:
-            st.info("Không có thách thức nào được xác định")
+            # Hiển thị dạng tổng hợp (như cũ)
+            # Strengths
+            st.markdown("---")
+            st.subheader("💪 Strengths (Điểm mạnh)")
+            strengths = format_swot_table_data(result, "Strengths")
+            if strengths:
+                st.dataframe(
+                    pd.DataFrame(strengths),
+                    use_container_width=True,
+                    hide_index=True
+                )
+            else:
+                st.info("Không có điểm mạnh nào được xác định")
+            
+            # Weaknesses
+            st.subheader("⚠️ Weaknesses (Điểm yếu)")
+            weaknesses = format_swot_table_data(result, "Weaknesses")
+            if weaknesses:
+                st.dataframe(
+                    pd.DataFrame(weaknesses),
+                    use_container_width=True,
+                    hide_index=True
+                )
+            else:
+                st.info("Không có điểm yếu nào được xác định")
+            
+            # Opportunities
+            st.subheader("🎯 Opportunities (Cơ hội)")
+            opportunities = format_swot_table_data(result, "Opportunities")
+            if opportunities:
+                st.dataframe(
+                    pd.DataFrame(opportunities),
+                    use_container_width=True,
+                    hide_index=True
+                )
+            else:
+                st.info("Không có cơ hội nào được xác định")
+            
+            # Threats
+            st.subheader("🔥 Threats (Thách thức)")
+            threats = format_swot_table_data(result, "Threats")
+            if threats:
+                st.dataframe(
+                    pd.DataFrame(threats),
+                    use_container_width=True,
+                    hide_index=True
+                )
+            else:
+                st.info("Không có thách thức nào được xác định")
         
         # Export kết quả
         st.markdown("---")

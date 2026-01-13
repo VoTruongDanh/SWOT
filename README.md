@@ -1,193 +1,222 @@
 # 📊 SWOT AI Analyzer
 
-Ứng dụng Web phân tích SWOT thông minh từ đánh giá khách hàng F&B, sử dụng Streamlit và Google Gemini 2.5 Flash.
+Ứng dụng phân tích SWOT thông minh từ đánh giá khách hàng F&B sử dụng AI (Google Gemini 2.5 Flash).
 
-## 🎯 Tính năng
+## ✨ Tính năng
 
-- ✅ Upload và xử lý file Excel/CSV chứa đánh giá khách hàng
-- ✅ Phân tích cảm xúc tự động (Sentiment Analysis)
-- ✅ Trích xuất và gom nhóm chủ đề (Aspect Extraction & Clustering)
-- ✅ Xây dựng mô hình SWOT tự động
-- ✅ Trực quan hóa kết quả với biểu đồ tương tác
-- ✅ Export kết quả dưới dạng JSON
-
-## 🏗️ Kiến trúc
-
-Ứng dụng được chia thành 3 lớp chính:
-
-1. **Frontend (Giao diện)**: Streamlit UI
-2. **Backend (Xử lý)**: Python với Pandas
-3. **AI Layer (Trí tuệ nhân tạo)**: Google Gemini 2.5 Flash API
-
-### Luồng dữ liệu
-
-```
-User Upload → Data Cleaning → Prompt Engineering → Gemini API → JSON Parsing → Visualization
-```
-
-## 📋 Yêu cầu hệ thống
-
-- Python 3.8+
-- Google Gemini API Key
+- 🤖 **Phân tích SWOT tự động** bằng AI từ đánh giá khách hàng
+- 📁 **Upload nhiều file** cùng lúc (Excel/CSV)
+- 🔍 **Tự động phát hiện cột** đánh giá và nguồn (Source)
+- 📊 **2 chế độ phân tích**: Tổng hợp hoặc Phân tích riêng (SWOT của mình và SWOT của đối thủ)
+- 📈 **Biểu đồ trực quan** phân bố SWOT và mức độ ảnh hưởng
+- 📥 **Export báo cáo Excel** với biểu đồ và format chuyên nghiệp
+- 🎯 **Phân tích đa dạng**: Hỗ trợ giá cả, rating, menu, ngày, user
 
 ## 🚀 Cài đặt
 
-### 1. Clone repository
+### Yêu cầu hệ thống
+- Python 3.10 trở lên
+- Google Gemini API Key
 
-```bash
-git clone <repository-url>
-cd SWOT
-```
-
-### 2. Cài đặt dependencies
+### Cài đặt dependencies
 
 ```bash
 pip install -r requirements.txt
 ```
 
-### 3. Cấu hình API Key
+### Cấu hình API Key
 
-Tạo file `.env` và thêm Gemini API Key của bạn:
-
-```bash
-# Tạo file .env
-echo "GEMINI_API_KEY=your_actual_api_key_here" > .env
-```
-
-Hoặc tạo file `.env` thủ công với nội dung:
+1. Tạo file `.env` trong thư mục gốc
+2. Thêm API key vào file:
 
 ```
-GEMINI_API_KEY=your_actual_api_key_here
+GEMINI_API_KEY=your_api_key_here
 ```
 
-Lấy API key tại: https://makersuite.google.com/app/apikey
+**Lưu ý:** File `.env` phải được lưu với encoding UTF-8 (không có BOM).
 
-### 4. (Tùy chọn) Kiểm tra setup
+## 📖 Hướng dẫn sử dụng
 
-Chạy script kiểm tra:
+### 1. Chuẩn bị file dữ liệu
 
-```bash
-python setup.py
+#### Cấu trúc file Excel/CSV:
+
+**Tùy chọn 1: Có cột Source rõ ràng**
+- **Cột đánh giá**: Chứa nội dung đánh giá khách hàng
+  - Tên cột có thể là: `Review`, `Đánh giá`, `Comment`, `Content`, `Nội dung`, v.v.
+- **Cột Source**: Chứa nguồn đánh giá
+  - Giá trị: `MY_SHOP` hoặc `CỦA MÌNH` - Đánh giá về quán của bạn
+  - Giá trị: `COMPETITOR` hoặc `ĐỐI THỦ` - Đánh giá về đối thủ
+
+**Tùy chọn 2: Không có cột Source**
+- Hệ thống sẽ tự động phát hiện Source từ **tên file**:
+  - File có chứa: `my_shop`, `myshop`, `của mình` → MY_SHOP
+  - File có chứa: `competitor`, `đối thủ`, `starbucks`, `highlands`, `phuc long`, `katinat`, v.v. → COMPETITOR
+  - Nếu không phát hiện được → Mặc định là COMPETITOR
+
+**Các cột bổ sung (tùy chọn):**
+- `Price` / `Giá` - Giá cả sản phẩm
+- `Rating` / `Điểm` - Điểm đánh giá/số sao
+- `Menu` / `Món` - Tên món/sản phẩm
+- `Date` / `Ngày` - Ngày đánh giá
+- `User` / `Người dùng` - Tên người đánh giá
+
+**Ví dụ file CSV:**
+
+```csv
+Review,Source,Price,Rating
+"Cà phê ngon, giá hợp lý",MY_SHOP,45000,5
+"Nhân viên phục vụ chậm",MY_SHOP,50000,3
+"Starbucks có không gian đẹp",COMPETITOR,80000,4
 ```
 
-### 5. Chạy ứng dụng
+### 2. Upload file
 
-```bash
-streamlit run app.py
-```
+1. Mở ứng dụng: `streamlit run app.py`
+2. Nhấn nút **"Browse files"** hoặc kéo thả file vào vùng upload
+3. **Có thể upload nhiều file cùng lúc** - hệ thống sẽ tự động tổng hợp
+4. Hệ thống sẽ:
+   - Tự động phát hiện cột đánh giá và Source
+   - Làm sạch dữ liệu (loại bỏ dòng trống, chuẩn hóa)
+   - Hiển thị thống kê từng file và tổng hợp
 
-Ứng dụng sẽ mở tại: `http://localhost:8501`
+### 3. Chọn chế độ phân tích
 
-### 6. Test với dữ liệu mẫu
+**Chế độ 1: Tổng hợp (Mặc định)**
+- Phân tích tất cả dữ liệu cùng lúc
+- Tạo 1 báo cáo SWOT tổng hợp
+- Phù hợp khi có cả dữ liệu MY_SHOP và COMPETITOR
 
-File `sample_data.csv` đã được cung cấp sẵn để test. Bạn có thể upload file này để thử nghiệm ứng dụng.
+**Chế độ 2: Phân tích riêng**
+- Phân tích riêng SWOT của mình và SWOT của đối thủ
+- Hiển thị 2 cột cạnh nhau:
+  - **Cột trái**: SWOT của mình (đầy đủ S, W, O, T)
+  - **Cột phải**: SWOT của đối thủ (đầy đủ S, W, O, T)
+- Mỗi cột có Executive Summary riêng
+- Phù hợp để so sánh trực tiếp
 
-## 📁 Cấu trúc dữ liệu đầu vào
+### 4. Xem kết quả
 
-File Excel/CSV cần có 2 cột:
+Sau khi phân tích, bạn sẽ thấy:
 
-| Review | Source |
-|--------|--------|
-| "Đồ uống rất ngon, giá hợp lý" | MY_SHOP |
-| "Nhân viên phục vụ chậm" | MY_SHOP |
-| "Quán đối thủ có wifi tốt hơn" | COMPETITOR |
+- **📝 Tóm tắt điều hành**: Executive Summary
+- **📈 Biểu đồ**:
+  - Pie chart: Phân bố SWOT
+  - Bar chart: Mức độ Ảnh hưởng/Rủi ro
+- **📊 Bảng chi tiết**: Từng nhóm SWOT với:
+  - Chủ đề (Topic)
+  - Mô tả chi tiết (Description)
+  - Mức độ ảnh hưởng/Rủi ro (Impact/Risk Level)
+  - Gợi ý hành động (Action Ideas) - cho Opportunities
+  - Nguyên nhân gốc rễ (Root Cause) - cho Weaknesses
 
-### Quy ước Source:
+### 5. Export kết quả
 
-- `MY_SHOP` hoặc `CỦA MÌNH`: Đánh giá về quán của bạn
-- `COMPETITOR` hoặc `ĐỐI THỦ`: Đánh giá về đối thủ cạnh tranh
+**Export Excel (Khuyến nghị):**
+- Nhấn **"📊 Tải xuống báo cáo Excel (có biểu đồ)"**
+- File Excel bao gồm:
+  - Sheet 1: Tóm tắt Điều hành + Biểu đồ
+  - Sheet 2-5: Chi tiết từng nhóm SWOT (Strengths, Weaknesses, Opportunities, Threats)
+  - Sheet 6: Dữ liệu gốc (nếu có)
+  - Sheet 7: Thống kê từng file (nếu có)
+  - Format chuyên nghiệp, sẵn sàng trình bày
 
-## 🔍 Logic phân tích SWOT
+**Export JSON:**
+- Nhấn **"📥 Tải xuống kết quả JSON"**
+- Dữ liệu thô dạng JSON để xử lý tiếp
 
-Ứng dụng tự động phân loại đánh giá theo quy tắc:
+## 🔍 Tính năng tự động phát hiện
 
-- **MY_SHOP + Tích cực** → **STRENGTHS** (Điểm mạnh)
-- **MY_SHOP + Tiêu cực** → **WEAKNESSES** (Điểm yếu)
-- **COMPETITOR + Tiêu cực** → **OPPORTUNITIES** (Cơ hội)
-- **COMPETITOR + Tích cực** → **THREATS** (Thách thức)
+### Phát hiện cột đánh giá
 
-## 📊 Định dạng kết quả
+Hệ thống tự động tìm cột chứa nội dung đánh giá bằng cách:
+1. Tìm theo từ khóa: `review`, `đánh giá`, `comment`, `content`, `nội dung`
+2. Phân tích nội dung: Cột có nhiều text dài nhất
+3. Kết hợp nhiều cột text thành 1 cột đánh giá
 
-Kết quả được trả về dưới dạng JSON với cấu trúc:
+### Phát hiện cột Source
 
-```json
-{
-  "SWOT_Analysis": {
-    "Strengths": [
-      {
-        "topic": "Chất lượng đồ uống",
-        "description": "Mô tả chi tiết...",
-        "impact": "High"
-      }
-    ],
-    "Weaknesses": [
-      {
-        "topic": "Thái độ nhân viên",
-        "description": "Mô tả chi tiết...",
-        "root_cause": "Nguyên nhân gốc rễ",
-        "impact": "Medium"
-      }
-    ],
-    "Opportunities": [
-      {
-        "topic": "Điểm yếu đối thủ",
-        "description": "Mô tả chi tiết...",
-        "action_idea": "Gợi ý hành động"
-      }
-    ],
-    "Threats": [
-      {
-        "topic": "Điểm mạnh đối thủ",
-        "description": "Mô tả chi tiết...",
-        "risk_level": "High"
-      }
-    ]
-  },
-  "Executive_Summary": "Tóm tắt ngắn gọn..."
-}
-```
+Hệ thống tự động tìm cột Source bằng cách:
+1. Tìm theo tên cột: `source`, `nguồn`, `shop_type`, `store_type`
+2. Phân tích giá trị: Tìm cột có giá trị `MY_SHOP`, `COMPETITOR`
+3. Phát hiện từ tên file: Nếu không có cột Source, phân tích tên file
 
-## 📂 Cấu trúc project
+### Phát hiện Source từ tên file
+
+Các từ khóa được nhận diện:
+
+**MY_SHOP:**
+- `my_shop`, `myshop`, `của mình`, `my store`, `our shop`
+
+**COMPETITOR:**
+- `competitor`, `đối thủ`, `starbucks`, `phuc long`, `highlands`, `katinat`, `trung nguyen`, v.v.
+
+## 📊 Logic phân tích SWOT
+
+### Chế độ Tổng hợp:
+- **MY_SHOP + Tích cực** → Strengths (Điểm mạnh)
+- **MY_SHOP + Tiêu cực** → Weaknesses (Điểm yếu)
+- **COMPETITOR + Tiêu cực** → Opportunities (Cơ hội)
+- **COMPETITOR + Tích cực** → Threats (Thách thức)
+
+### Chế độ Phân tích riêng:
+
+**SWOT của mình:**
+- Phân tích đầy đủ S, W, O, T từ đánh giá về quán của bạn
+- Strengths: Từ đánh giá tích cực
+- Weaknesses: Từ đánh giá tiêu cực
+- Opportunities: Cơ hội cải thiện, mở rộng
+- Threats: Thách thức từ thị trường
+
+**SWOT của đối thủ:**
+- Phân tích đầy đủ S, W, O, T từ đánh giá về đối thủ
+- Strengths: Điểm mạnh của đối thủ
+- Weaknesses: Điểm yếu của đối thủ
+- Opportunities: Cơ hội khai thác điểm yếu đối thủ
+- Threats: Thách thức từ điểm mạnh đối thủ
+
+## 🛠️ Cấu trúc dự án
 
 ```
 SWOT/
-├── app.py                 # File chính Streamlit
-├── ai_analyzer.py         # Module xử lý Gemini API
-├── utils.py               # Utility functions (data processing, visualization)
+├── app.py                 # Ứng dụng Streamlit chính
+├── ai_analyzer.py         # Module phân tích AI với Gemini
+├── utils.py               # Utilities: load data, clean data
+├── excel_export.py        # Module export Excel với biểu đồ
 ├── requirements.txt       # Dependencies
-├── .env.example          # Template cho API key
-├── .env                  # File chứa API key (không commit)
-└── README.md             # Tài liệu này
+├── .env                   # API Key (không commit lên Git)
+└── README.md             # Hướng dẫn này
 ```
 
-## 🛠️ Công nghệ sử dụng
+## 📝 Lưu ý
 
-- **Streamlit**: Framework web app
-- **Google Gemini 2.5 Flash**: LLM cho phân tích SWOT
-- **Pandas**: Xử lý dữ liệu
-- **Plotly**: Trực quan hóa biểu đồ
-- **Python-dotenv**: Quản lý environment variables
+1. **API Key**: Đảm bảo file `.env` được lưu với encoding UTF-8
+2. **Dữ liệu lớn**: Hệ thống tự động xử lý batch cho dữ liệu lớn (>500 reviews)
+3. **Nhiều file**: Có thể upload tối đa 200MB/file, không giới hạn số file
+4. **Encoding**: Hệ thống tự động thử nhiều encoding (UTF-8, Latin-1, CP1252) để đọc file CSV
 
-## ⚙️ Cấu hình Model
+## 🐛 Xử lý lỗi
 
-Ứng dụng tự động thử các model theo thứ tự ưu tiên:
-1. `gemini-2.5-flash` (mới nhất)
-2. `gemini-2.0-flash-exp`
-3. `gemini-1.5-flash` (fallback)
+### Lỗi "Không tìm thấy cột Source"
+- **Giải pháp**: Đổi tên file có chứa `my_shop` hoặc tên đối thủ (ví dụ: `starbucks`, `highlands`)
+- Hoặc thêm cột `Source` vào file với giá trị `MY_SHOP` hoặc `COMPETITOR`
 
-Nếu bạn muốn chỉ định model cụ thể, mở file `ai_analyzer.py` và sửa danh sách `model_names`.
+### Lỗi "Không tìm thấy cột đánh giá"
+- **Giải pháp**: Đảm bảo file có ít nhất 1 cột chứa text dài (nội dung đánh giá)
+- Đổi tên cột thành: `Review`, `Đánh giá`, `Comment`, `Content`
 
-## ⚠️ Lưu ý
+### Lỗi JSON parsing
+- Hệ thống tự động xử lý và làm sạch JSON response từ AI
+- Nếu vẫn lỗi, thử giảm số lượng reviews hoặc chia nhỏ file
 
-- File dữ liệu lớn (>200 reviews) sẽ được lấy mẫu ngẫu nhiên để tối ưu hiệu suất
-- Đảm bảo file `.env` không được commit lên Git (đã có trong `.gitignore`)
-- API key có giới hạn rate limit, vui lòng sử dụng hợp lý
-- Model `gemini-1.5-flash` là model ổn định và nhanh, phù hợp cho ứng dụng này
+## 📞 Hỗ trợ
 
-## 📝 License
+Nếu gặp vấn đề, vui lòng kiểm tra:
+1. File `.env` có đúng format và encoding UTF-8
+2. API Key có hợp lệ
+3. File dữ liệu có đúng cấu trúc
+4. Đã cài đặt đầy đủ dependencies
+
+## 📄 License
 
 MIT License
-
-## 👤 Tác giả
-
-SWOT AI Analyzer - Phân tích SWOT thông minh cho F&B

@@ -8,12 +8,23 @@ import google.generativeai as genai
 from typing import Dict, List, Any
 from dotenv import load_dotenv
 
-# Load .env file
-# Lưu ý: File .env phải được lưu với encoding UTF-8 (không có BOM)
+# Load API Key từ Streamlit Secrets (khi deploy) hoặc .env (khi chạy local)
+# Thử đọc từ .env trước (cho local development)
 load_dotenv()
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+
+# Nếu không có trong .env, thử đọc từ Streamlit Secrets (khi deploy lên Streamlit Cloud)
+if not GEMINI_API_KEY:
+    try:
+        import streamlit as st
+        # Thử đọc từ Streamlit Secrets
+        if hasattr(st, 'secrets') and hasattr(st.secrets, 'get'):
+            GEMINI_API_KEY = st.secrets.get('GEMINI_API_KEY', None)
+    except:
+        # Nếu không có streamlit hoặc không có secrets, giữ None
+        pass
 
 # Cấu hình Gemini API
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 if GEMINI_API_KEY:
     genai.configure(api_key=GEMINI_API_KEY)
 
@@ -55,10 +66,22 @@ Hãy thực hiện quy trình suy luận hiệu quả và chính xác:
    - Nếu có thông tin về giá/rating/menu, hãy phân tích theo từng nhóm.
 
 3. **Mapping SWOT (Quy tắc xếp loại):**
-   - MY_SHOP + Tích cực -> STRENGTHS (Điểm mạnh).
-   - MY_SHOP + Tiêu cực -> WEAKNESSES (Điểm yếu).
-   - COMPETITOR + Tiêu cực -> OPPORTUNITIES (Cơ hội).
-   - COMPETITOR + Tích cực -> THREATS (Thách thức).
+   
+   **Khi phân tích đánh giá về MY_SHOP (quán của tôi):**
+   - MY_SHOP + Tích cực -> STRENGTHS (Điểm mạnh của tôi).
+   - MY_SHOP + Tiêu cực -> WEAKNESSES (Điểm yếu của tôi).
+   - Từ đánh giá về MY_SHOP, cũng có thể suy ra:
+     * OPPORTUNITIES: Cơ hội cải thiện dựa trên điểm yếu của tôi hoặc thị trường.
+     * THREATS: Thách thức tiềm ẩn từ thị trường hoặc xu hướng.
+   
+   **Khi phân tích đánh giá về COMPETITOR (đối thủ):**
+   - COMPETITOR + Tích cực -> THREATS (Thách thức - đối thủ làm tốt hơn).
+   - COMPETITOR + Tiêu cực -> OPPORTUNITIES (Cơ hội - khai thác điểm yếu đối thủ).
+   - Từ đánh giá về COMPETITOR, cũng có thể suy ra:
+     * STRENGTHS: Điểm mạnh của đối thủ (để học hỏi hoặc cạnh tranh).
+     * WEAKNESSES: Điểm yếu của đối thủ (để khai thác).
+   
+   **QUAN TRỌNG:** Khi phân tích một nguồn (MY_SHOP hoặc COMPETITOR), hãy phân tích đầy đủ 4 phần SWOT dựa trên context và insights từ dữ liệu đó.
 
 4. **Phân tích sâu (Deep Analysis):**
    - Nếu có thông tin về giá: Phân tích về giá cả, so sánh giá trị.
@@ -103,7 +126,6 @@ def format_reviews_for_prompt(reviews_data: List[Dict[str, Any]], compact: bool 
         Chuỗi văn bản đã format
     """
     if compact:
-        # Format compact: mỗi review trên 1 dòng để tiết kiệm token
         formatted_text = "\n# REVIEWS DATA (Format: SOURCE|CONTENT|PRICE|RATING|MENU|DATE)\n\n"
         
         for review in reviews_data:
@@ -169,7 +191,7 @@ def analyze_swot_with_gemini(reviews_data: List[Dict[str, Any]], batch_size: int
         Dict chứa kết quả SWOT analysis
     """
     if not GEMINI_API_KEY:
-        raise ValueError("GEMINI_API_KEY chưa được cấu hình. Vui lòng thêm vào file .env")
+        raise ValueError("GEMINI_API_KEY chưa được cấu hình. Vui lòng thêm vào file .env hoặc Streamlit Secrets")
     
     # Khởi tạo model Gemini 2.5 Flash
     # Thử các model name theo thứ tự ưu tiên
@@ -254,12 +276,13 @@ def analyze_swot_with_gemini(reviews_data: List[Dict[str, Any]], batch_size: int
         # Tổng hợp Executive Summary (tối ưu - chỉ lấy 5 summary đầu)
         if all_summaries:
             if len(all_summaries) > 1:
-                summary_prompt = f"Hãy tổng hợp các tóm tắt sau thành một đoạn văn ngắn khoảng 50 từ, tập trung vào insights quan trọng nhất:\n\n" + "\n---\n".join(all_summaries[:5])
-                try:
-                    summary_response = model.generate_content(summary_prompt)
-                    all_results["Executive_Summary"] = summary_response.text.strip()
-                except:
-                    all_results["Executive_Summary"] = all_summaries[0]
+                # Tổng hợp bằng cách lấy summary đầu tiên và thêm thông tin từ các summary khác
+                main_summary = all_summaries[0]
+                if len(all_summaries) > 1:
+                    additional_info = " | ".join(all_summaries[1:5])  # Lấy tối đa 4 summary còn lại
+                    all_results["Executive_Summary"] = f"{main_summary} {additional_info}"[:500]  # Giới hạn độ dài
+                else:
+                    all_results["Executive_Summary"] = main_summary
             else:
                 all_results["Executive_Summary"] = all_summaries[0]
         
@@ -277,7 +300,7 @@ def analyze_swot_with_gemini(reviews_data: List[Dict[str, Any]], batch_size: int
                         existing_impact = existing.get("impact", "Low") or existing.get("risk_level", "Low")
                         new_impact = item.get("impact", "Low") or item.get("risk_level", "Low")
                         impact_order = {"High": 3, "Medium": 2, "Low": 1}
-                        if impact_order.get(new_impact, 0) > impact_order.get(existing_impact, 0):
+                        if impact_order.get(new_impact, 1) > impact_order.get(existing_impact, 1):
                             seen_topics[topic] = item
             
             all_results["SWOT_Analysis"][category] = list(seen_topics.values())
@@ -314,6 +337,31 @@ def _analyze_single_batch(model, reviews_data: List[Dict[str, Any]], analysis_ty
     summary += f"- MY_SHOP: {my_shop_count} reviews\n"
     summary += f"- COMPETITOR: {competitor_count} reviews\n"
     
+    # Hướng dẫn phân tích theo context
+    if my_shop_count > 0 and competitor_count == 0:
+        # Chỉ có MY_SHOP reviews - phân tích SWOT của mình
+        summary += f"\n**CONTEXT QUAN TRỌNG:** Đây là đánh giá về QUÁN CỦA TÔI. Hãy phân tích đầy đủ SWOT của mình:\n"
+        summary += f"- **Strengths:** Từ đánh giá tích cực về quán của tôi\n"
+        summary += f"- **Weaknesses:** Từ đánh giá tiêu cực về quán của tôi\n"
+        summary += f"- **Opportunities:** Cơ hội cải thiện, mở rộng, hoặc thị trường dựa trên insights từ dữ liệu (ví dụ: nếu có nhiều phàn nàn về giá, đó là cơ hội tối ưu giá)\n"
+        summary += f"- **Threats:** Thách thức tiềm ẩn, xu hướng, hoặc rủi ro từ thị trường (ví dụ: nếu khách hàng yêu cầu tính năng mới, đó là threat nếu không đáp ứng)\n"
+        summary += f"**LƯU Ý:** Phải có ít nhất một số items trong mỗi phần SWOT, không được để trống hoàn toàn.\n"
+    elif competitor_count > 0 and my_shop_count == 0:
+        # Chỉ có COMPETITOR reviews - phân tích SWOT của đối thủ
+        summary += f"\n**CONTEXT QUAN TRỌNG:** Đây là đánh giá về ĐỐI THỦ CẠNH TRANH. Hãy phân tích đầy đủ SWOT của đối thủ:\n"
+        summary += f"- **Strengths:** Điểm mạnh của đối thủ (từ đánh giá tích cực về đối thủ)\n"
+        summary += f"- **Weaknesses:** Điểm yếu của đối thủ (từ đánh giá tiêu cực về đối thủ)\n"
+        summary += f"- **Opportunities:** Cơ hội cho tôi (khai thác điểm yếu đối thủ, thị trường)\n"
+        summary += f"- **Threats:** Thách thức cho tôi (đối thủ làm tốt, cạnh tranh)\n"
+        summary += f"**LƯU Ý:** Phải có ít nhất một số items trong mỗi phần SWOT, không được để trống hoàn toàn.\n"
+    else:
+        # Có cả 2 loại - phân tích tổng hợp
+        summary += f"\n**CONTEXT:** Có cả đánh giá về quán của tôi và đối thủ. Phân tích SWOT tổng hợp:\n"
+        summary += f"- **Strengths:** Từ đánh giá tích cực về quán của tôi\n"
+        summary += f"- **Weaknesses:** Từ đánh giá tiêu cực về quán của tôi\n"
+        summary += f"- **Opportunities:** Từ đánh giá tiêu cực về đối thủ + cơ hội thị trường\n"
+        summary += f"- **Threats:** Từ đánh giá tích cực về đối thủ + thách thức cạnh tranh\n"
+    
     # Kiểm tra có thông tin bổ sung không
     has_price = any('price' in r and pd.notna(r.get('price')) for r in reviews_data)
     has_rating = any('rating' in r and pd.notna(r.get('rating')) for r in reviews_data)
@@ -341,10 +389,11 @@ def _analyze_single_batch(model, reviews_data: List[Dict[str, Any]], analysis_ty
 2. Gom nhóm các đánh giá tương tự
 3. Trả về JSON đúng định dạng
 4. Không lặp lại thông tin
-5. Ưu tiên các insights quan trọng nhất"""
+5. Ưu tiên các insights quan trọng nhất
+6. Tuân thủ hướng dẫn phân tích theo loại ở trên"""
     
     try:
-        # Gọi API
+        # Gọi API Gemini
         response = model.generate_content(full_prompt)
         
         # Lấy text response
@@ -400,7 +449,38 @@ def _analyze_single_batch(model, reviews_data: List[Dict[str, Any]], analysis_ty
             error_msg += f"Response text (500 ký tự cuối): ...{response_text[-500:]}"
         raise ValueError(error_msg)
     except Exception as e:
-        raise Exception(f"Lỗi khi gọi Gemini API: {str(e)}")
+        error_str = str(e)
+        
+        # Xử lý các lỗi phổ biến với thông báo thân thiện
+        if "Insufficient Balance" in error_str or "402" in error_str:
+            raise Exception(
+                "❌ **Lỗi: Tài khoản Gemini không đủ số dư**\n\n"
+                "Vui lòng:\n"
+                "1. Kiểm tra số dư tài khoản tại: https://makersuite.google.com/app/apikey\n"
+                "2. Nạp thêm tiền vào tài khoản Gemini\n"
+                "3. Hoặc sử dụng API key khác có đủ số dư\n\n"
+                f"Chi tiết lỗi: {error_str}"
+            )
+        elif "401" in error_str or "Invalid API key" in error_str or "Unauthorized" in error_str:
+            raise Exception(
+                "❌ **Lỗi: API Key không hợp lệ**\n\n"
+                "Vui lòng:\n"
+                "1. Kiểm tra lại API key trong file .env hoặc Streamlit Secrets\n"
+                "2. Đảm bảo API key đúng format\n"
+                "3. Lấy API key mới tại: https://makersuite.google.com/app/apikey\n\n"
+                f"Chi tiết lỗi: {error_str}"
+            )
+        elif "429" in error_str or "rate limit" in error_str.lower():
+            raise Exception(
+                "❌ **Lỗi: Vượt quá giới hạn rate limit**\n\n"
+                "Vui lòng:\n"
+                "1. Đợi một chút rồi thử lại\n"
+                "2. Giảm số lượng reviews trong mỗi lần phân tích\n"
+                "3. Hoặc nâng cấp gói API của Gemini\n\n"
+                f"Chi tiết lỗi: {error_str}"
+            )
+        else:
+            raise Exception(f"Lỗi khi gọi Gemini API: {error_str}")
 
 
 def validate_swot_result(result: Dict[str, Any]) -> bool:
@@ -408,20 +488,24 @@ def validate_swot_result(result: Dict[str, Any]) -> bool:
     Kiểm tra tính hợp lệ của kết quả SWOT
     
     Args:
-        result: Dict kết quả từ AI
+        result: Dict chứa kết quả SWOT
     
     Returns:
         True nếu hợp lệ, False nếu không
     """
-    required_keys = ["SWOT_Analysis", "Executive_Summary"]
+    if not isinstance(result, dict):
+        return False
     
-    if not all(key in result for key in required_keys):
+    if "SWOT_Analysis" not in result:
         return False
     
     swot = result.get("SWOT_Analysis", {})
-    required_swot_keys = ["Strengths", "Weaknesses", "Opportunities", "Threats"]
+    required_keys = ["Strengths", "Weaknesses", "Opportunities", "Threats"]
     
-    if not all(key in swot for key in required_swot_keys):
-        return False
+    for key in required_keys:
+        if key not in swot:
+            return False
+        if not isinstance(swot[key], list):
+            return False
     
     return True

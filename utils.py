@@ -264,9 +264,17 @@ def load_and_clean_data(uploaded_file, file_name: str = None) -> pd.DataFrame:
                         if detected_source:
                             break
             
-            # Áp dụng kết quả phát hiện
+            # Áp dụng kết quả phát hiện (lưu thông tin để hiển thị sau)
+            file_detection_info = {
+                'source': None,
+                'method': None,
+                'shop_name': None,
+                'has_warning': False
+            }
+            
             if detected_source:
-                st.info(f"ℹ️ Phát hiện nguồn từ {detection_method}: **{detected_source}**")
+                file_detection_info['source'] = detected_source
+                file_detection_info['method'] = detection_method
                 df['source'] = detected_source
                 source_col = 'source'
             else:
@@ -298,14 +306,15 @@ def load_and_clean_data(uploaded_file, file_name: str = None) -> pd.DataFrame:
                         break
                 
                 if shop_name:
-                    st.info(f"ℹ️ Phát hiện shop từ tên file '{file_name}': **{shop_name}** (phân loại là COMPETITOR)")
+                    file_detection_info['source'] = 'COMPETITOR'
+                    file_detection_info['shop_name'] = shop_name
+                    file_detection_info['method'] = f"tên file '{file_name}'"
                     df['source'] = 'COMPETITOR'
                     source_col = 'source'
                 else:
-                    # Nếu không phát hiện được shop cụ thể, hỏi người dùng hoặc mặc định COMPETITOR
-                    st.warning(f"⚠️ Không tìm thấy cột phân loại nguồn (Source) và không phát hiện shop từ tên file.")
-                    st.info(f"💡 File '{file_name}' sẽ được phân loại là **COMPETITOR** (đối thủ). Nếu đây là dữ liệu về quán của bạn, vui lòng đổi tên file có chứa 'my_shop' hoặc thêm cột Source vào file.")
-                    # Mặc định là COMPETITOR thay vì MY_SHOP
+                    # Nếu không phát hiện được shop cụ thể, mặc định COMPETITOR
+                    file_detection_info['source'] = 'COMPETITOR'
+                    file_detection_info['has_warning'] = True
                     df['source'] = 'COMPETITOR'
                     source_col = 'source'
         
@@ -327,7 +336,11 @@ def load_and_clean_data(uploaded_file, file_name: str = None) -> pd.DataFrame:
                     combined_review = combined_review.str.strip()
                 
                 df[review_col] = combined_review
-                st.info(f"ℹ️ Đã kết hợp {len(review_cols)} cột đánh giá: {', '.join([column_mapping.get(c, c) for c in review_cols])}")
+                # Lưu thông tin để hiển thị sau (không hiển thị ngay)
+                if 'combined_cols_info' not in locals():
+                    combined_cols_info = {}
+                combined_cols_info['count'] = len(review_cols)
+                combined_cols_info['cols'] = [column_mapping.get(c, c) for c in review_cols]
         
         # Bước 7: Tìm các cột bổ sung (giá, menu, rating, v.v.)
         additional_cols = {}
@@ -450,23 +463,24 @@ def load_and_clean_data(uploaded_file, file_name: str = None) -> pd.DataFrame:
         else:
             source_col_display = column_mapping.get(source_col, source_col)
         
-        info_text = f"✅ **Đã phát hiện:**\n"
-        info_text += f"- Cột đánh giá chính: **{review_col_original}**\n"
-        if len(review_cols) > 1:
-            other_cols = [column_mapping.get(c, c) for c in review_cols if c != review_col]
-            info_text += f"- Các cột đánh giá khác: {', '.join(other_cols)}\n"
-        info_text += f"- Cột nguồn: **{source_col_display}**\n"
+        # Lưu thông tin file để hiển thị sau (không hiển thị ngay)
+        file_summary = {
+            'name': file_name,
+            'review_cols_count': len(review_cols),
+            'source': source_col_display.split(':')[-1].strip(),
+            'additional_cols_count': len(additional_cols),
+            'total_cols': len(original_columns),
+            'review_col': review_col_original,
+            'other_cols': [column_mapping.get(c, c) for c in review_cols if c != review_col] if len(review_cols) > 1 else [],
+            'combined_cols_info': combined_cols_info if 'combined_cols_info' in locals() else None,
+            'additional_cols': {k: column_mapping.get(v, v) for k, v in additional_cols.items()} if additional_cols else {},
+            'has_warning': file_detection_info.get('has_warning', False) if 'file_detection_info' in locals() else False
+        }
         
-        # Hiển thị các cột bổ sung
-        if additional_cols:
-            info_text += f"- **Các thông tin bổ sung:**\n"
-            for key, col in additional_cols.items():
-                col_original = column_mapping.get(col, col)
-                info_text += f"  • {key.upper()}: {col_original}\n"
-        
-        info_text += f"- Tổng số cột trong file: {len(original_columns)}"
-        
-        st.info(info_text)
+        # Lưu vào session state để app.py hiển thị
+        if 'file_summaries' not in st.session_state:
+            st.session_state['file_summaries'] = []
+        st.session_state['file_summaries'].append(file_summary)
         
         return df_clean.reset_index(drop=True)
     
