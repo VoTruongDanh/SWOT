@@ -11,19 +11,29 @@ from openpyxl.drawing.image import Image
 from openpyxl.utils import get_column_letter
 from io import BytesIO
 import base64
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 import streamlit as st
+
+# Thử import matplotlib làm fallback
+try:
+    import matplotlib
+    matplotlib.use('Agg')  # Non-interactive backend
+    import matplotlib.pyplot as plt
+    HAS_MATPLOTLIB = True
+except ImportError:
+    HAS_MATPLOTLIB = False
 
 
 def create_swot_charts(swot_data: Dict[str, Any]) -> Dict[str, BytesIO]:
     """
     Tạo các biểu đồ từ dữ liệu SWOT và lưu dưới dạng hình ảnh
+    Sử dụng Plotly với fallback sang matplotlib nếu không có Chrome/Kaleido
     
     Args:
         swot_data: Dict chứa SWOT_Analysis
     
     Returns:
-        Dict chứa các BytesIO object của biểu đồ
+        Dict chứa các BytesIO object của biểu đồ (có thể rỗng nếu không thể tạo charts)
     """
     swot = swot_data.get("SWOT_Analysis", {})
     charts = {}
@@ -39,23 +49,43 @@ def create_swot_charts(swot_data: Dict[str, Any]) -> Dict[str, BytesIO]:
     
     colors = ['#2ecc71', '#e74c3c', '#3498db', '#f39c12']
     
-    fig_pie = go.Figure(data=[go.Pie(
-        labels=categories,
-        values=counts,
-        hole=0.4,
-        marker_colors=colors,
-        textinfo='label+percent+value'
-    )])
-    fig_pie.update_layout(
-        title='Phân bố SWOT Analysis',
-        width=600,
-        height=400,
-        showlegend=True
-    )
-    
-    # Export pie chart
-    pie_img = fig_pie.to_image(format="png", width=600, height=400)
-    charts['pie_chart'] = BytesIO(pie_img)
+    # Thử dùng Plotly trước
+    try:
+        fig_pie = go.Figure(data=[go.Pie(
+            labels=categories,
+            values=counts,
+            hole=0.4,
+            marker_colors=colors,
+            textinfo='label+percent+value'
+        )])
+        fig_pie.update_layout(
+            title='Phân bố SWOT Analysis',
+            width=600,
+            height=400,
+            showlegend=True
+        )
+        
+        # Export pie chart
+        pie_img = fig_pie.to_image(format="png", width=600, height=400)
+        charts['pie_chart'] = BytesIO(pie_img)
+    except (RuntimeError, Exception) as e:
+        # Nếu lỗi (thường là do thiếu Chrome), thử dùng matplotlib
+        if "Chrome" in str(e) or "kaleido" in str(e).lower():
+            if HAS_MATPLOTLIB:
+                try:
+                    fig, ax = plt.subplots(figsize=(6, 4))
+                    ax.pie(counts, labels=categories, colors=colors, autopct='%1.1f%%', startangle=90)
+                    ax.set_title('Phân bố SWOT Analysis')
+                    
+                    pie_buffer = BytesIO()
+                    plt.savefig(pie_buffer, format='png', dpi=100, bbox_inches='tight')
+                    pie_buffer.seek(0)
+                    charts['pie_chart'] = pie_buffer
+                    plt.close(fig)
+                except Exception as e2:
+                    # Nếu matplotlib cũng lỗi, bỏ qua chart này
+                    pass
+        # Nếu không phải lỗi Chrome, bỏ qua chart này
     
     # 2. Bar chart Impact/Risk Level
     impact_levels = {'High': 0, 'Medium': 0, 'Low': 0}
@@ -70,26 +100,55 @@ def create_swot_charts(swot_data: Dict[str, Any]) -> Dict[str, BytesIO]:
         if risk in impact_levels:
             impact_levels[risk] += 1
     
-    fig_bar = go.Figure(data=[
-        go.Bar(
-            x=list(impact_levels.keys()),
-            y=list(impact_levels.values()),
-            marker_color=['#e74c3c', '#f39c12', '#2ecc71'],
-            text=list(impact_levels.values()),
-            textposition='auto'
+    # Thử dùng Plotly trước
+    try:
+        fig_bar = go.Figure(data=[
+            go.Bar(
+                x=list(impact_levels.keys()),
+                y=list(impact_levels.values()),
+                marker_color=['#e74c3c', '#f39c12', '#2ecc71'],
+                text=list(impact_levels.values()),
+                textposition='auto'
+            )
+        ])
+        fig_bar.update_layout(
+            title='Phân bố Mức độ Ảnh hưởng/Rủi ro',
+            xaxis_title='Mức độ',
+            yaxis_title='Số lượng',
+            width=600,
+            height=400
         )
-    ])
-    fig_bar.update_layout(
-        title='Phân bố Mức độ Ảnh hưởng/Rủi ro',
-        xaxis_title='Mức độ',
-        yaxis_title='Số lượng',
-        width=600,
-        height=400
-    )
-    
-    # Export bar chart
-    bar_img = fig_bar.to_image(format="png", width=600, height=400)
-    charts['bar_chart'] = BytesIO(bar_img)
+        
+        # Export bar chart
+        bar_img = fig_bar.to_image(format="png", width=600, height=400)
+        charts['bar_chart'] = BytesIO(bar_img)
+    except (RuntimeError, Exception) as e:
+        # Nếu lỗi (thường là do thiếu Chrome), thử dùng matplotlib
+        if "Chrome" in str(e) or "kaleido" in str(e).lower():
+            if HAS_MATPLOTLIB:
+                try:
+                    fig, ax = plt.subplots(figsize=(6, 4))
+                    bars = ax.bar(list(impact_levels.keys()), list(impact_levels.values()), 
+                                  color=['#e74c3c', '#f39c12', '#2ecc71'])
+                    ax.set_title('Phân bố Mức độ Ảnh hưởng/Rủi ro')
+                    ax.set_xlabel('Mức độ')
+                    ax.set_ylabel('Số lượng')
+                    
+                    # Thêm số trên mỗi cột
+                    for bar in bars:
+                        height = bar.get_height()
+                        ax.text(bar.get_x() + bar.get_width()/2., height,
+                               f'{int(height)}', ha='center', va='bottom')
+                    
+                    bar_buffer = BytesIO()
+                    plt.savefig(bar_buffer, format='png', dpi=100, bbox_inches='tight')
+                    bar_buffer.seek(0)
+                    charts['bar_chart'] = bar_buffer
+                    plt.close(fig)
+                except Exception as e2:
+                    # Nếu matplotlib cũng lỗi, bỏ qua chart này
+                    pass
+        # Nếu không phải lỗi Chrome, bỏ qua chart này
     
     return charts
 
@@ -110,8 +169,14 @@ def export_swot_to_excel(swot_data: Dict[str, Any], df: pd.DataFrame = None,
     wb = Workbook()
     wb.remove(wb.active)  # Xóa sheet mặc định
     
-    # Tạo các biểu đồ
-    charts = create_swot_charts(swot_data)
+    # Tạo các biểu đồ (có thể rỗng nếu không có Chrome/Kaleido)
+    try:
+        charts = create_swot_charts(swot_data)
+    except Exception as e:
+        # Nếu không thể tạo charts, tiếp tục mà không có charts
+        charts = {}
+        if st:
+            st.warning(f"⚠️ Không thể tạo biểu đồ (thiếu Chrome/Kaleido). File Excel sẽ không có charts. Lỗi: {str(e)[:100]}")
     
     # ========== SHEET 1: EXECUTIVE SUMMARY ==========
     ws_summary = wb.create_sheet("Tóm tắt Điều hành", 0)
