@@ -1,6 +1,7 @@
 """
 SWOT AI Analyzer - Ứng dụng phân tích SWOT từ đánh giá khách hàng F&B
 Sử dụng Streamlit và Google Gemini 2.5 Flash
+Enterprise Edition - Phân tích chiến lược toàn diện
 """
 import streamlit as st
 import pandas as pd
@@ -10,16 +11,26 @@ from utils import (
     prepare_reviews_for_ai,
     create_swot_pie_chart,
     create_impact_bar_chart,
-    format_swot_table_data
+    format_swot_table_data,
+    # Enterprise visualizations
+    create_tows_matrix_chart,
+    create_priority_heatmap,
+    create_competitive_radar,
+    create_risk_matrix,
+    create_action_timeline,
+    create_price_comparison_chart,
+    extract_price_data
 )
+from strategic_analyzer import StrategicAnalyzer, enrich_swot_with_scores
 from excel_export import export_swot_to_excel
 import json
 import time
 
+
 # Cấu hình trang
 st.set_page_config(
     page_title="SWOT AI Analyzer",
-    page_icon="📊",
+    page_icon="S",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -50,20 +61,34 @@ st.markdown("""
     .weakness { border-left: 5px solid #e74c3c; }
     .opportunity { border-left: 5px solid #3498db; }
     .threat { border-left: 5px solid #f39c12; }
+    
+    /* CSS cho dataframe - text wrapping */
+    .stDataFrame div[data-testid="stDataFrameResizable"] {
+        width: 100% !important;
+    }
+    .stDataFrame [data-testid="StyledDataFrame"] td {
+        white-space: pre-wrap !important;
+        word-wrap: break-word !important;
+        max-width: 300px !important;
+    }
+    .stDataFrame [data-testid="StyledDataFrame"] th {
+        white-space: nowrap !important;
+    }
     </style>
 """, unsafe_allow_html=True)
+
 
 
 def main():
     """Hàm chính của ứng dụng"""
     
     # Header
-    st.markdown('<h1 class="main-header">📊 SWOT AI Analyzer</h1>', unsafe_allow_html=True)
+    st.markdown('<h1 class="main-header">SWOT AI Analyzer</h1>', unsafe_allow_html=True)
     st.markdown('<p class="sub-header">Phân tích SWOT thông minh từ đánh giá khách hàng F&B</p>', unsafe_allow_html=True)
     
     # Sidebar - Hướng dẫn
     with st.sidebar:
-        with st.expander("📖 Hướng dẫn sử dụng", expanded=False):
+        with st.expander("Hướng dẫn sử dụng", expanded=False):
             st.markdown("""
             ### 1. Chuẩn bị file dữ liệu
             
@@ -158,6 +183,61 @@ def main():
         help="Bạn có thể upload nhiều file cùng lúc. Hệ thống sẽ tự động tổng hợp tất cả dữ liệu. Hệ thống sẽ tự động phát hiện cột đánh giá. Nếu không có cột Source, tất cả đánh giá sẽ được coi là về quán của bạn."
     )
     
+    # --- Price Comparison Input ---
+    # Disabled by user request
+    # with st.expander("💰 Nhập liệu So sánh Giá (Menu Pricing)", expanded=False):
+    #     st.info("Nhập danh sách các món chính để so sánh giá với đối thủ. Dữ liệu này sẽ được dùng để vẽ biểu đồ so sánh.")
+        
+    #     # Initialize session state for price data if not exists
+    #     if 'price_comparison_data' not in st.session_state:
+    #         st.session_state['price_comparison_data'] = pd.DataFrame(
+    #             columns=['Món', 'Giá của bạn', 'Giá đối thủ']
+    #         )
+        
+    #     # Data Editor
+    #     edited_price_df = st.data_editor(
+    #         st.session_state['price_comparison_data'],
+    #         num_rows="dynamic",
+    #         column_config={
+    #             "Món": st.column_config.TextColumn(
+    #                 "Tên món",
+    #                 help="Ví dụ: Cà phê sữa, Trà đào...",
+    #                 required=True
+    #             ),
+    #             "Giá của bạn": st.column_config.NumberColumn(
+    #                 "Giá của bạn (VNĐ)",
+    #                 min_value=0,
+    #                 step=1000,
+    #                 format="%d"
+    #             ),
+    #             "Giá đối thủ": st.column_config.NumberColumn(
+    #                 "Giá đối thủ (VNĐ)",
+    #                 min_value=0,
+    #                 step=1000,
+    #                 format="%d"
+    #             )
+    #         },
+    #         hide_index=True,
+    #         use_container_width=True
+    #     )
+        
+    #     # Update session state
+    #     st.session_state['price_comparison_data'] = edited_price_df
+        
+    #     if st.button("🔄 Quét lại giá từ dữ liệu đã tải"):
+    #         if 'df' in st.session_state and not st.session_state['df'].empty:
+    #             price_df = extract_price_data(st.session_state['df'])
+    #             if not price_df.empty:
+    #                 st.session_state['price_comparison_data'] = price_df
+    #                 st.success(f"✅ Đã tìm thấy {len(price_df)} món!")
+    #                 st.rerun()
+    #             else:
+    #                 st.warning("⚠️ Không tìm thấy thông tin giá trong dữ liệu hiện tại.")
+    #         else:
+    #             st.warning("⚠️ Vui lòng upload file dữ liệu trước.")
+
+    # ------------------------------
+    
     if uploaded_files and len(uploaded_files) > 0:
         try:
             # Load và tổng hợp dữ liệu từ nhiều file
@@ -201,10 +281,23 @@ def main():
                 
                 # Loại bỏ duplicate nếu có (dựa trên nội dung review)
                 df = df.drop_duplicates(subset=['review'], keep='first')
+                st.session_state['df'] = df
                 
-                progress_bar.progress(1.0)
-                status_text.empty()
                 progress_bar.empty()
+                
+                # --- Auto Extract Prices ---
+                # Disabled by user request
+                # try:
+                #     price_df = extract_price_data(df)
+                #     if not price_df.empty:
+                #         # Only update if current data is empty or user wants to overwrite?
+                #         # For now, let's Auto-Fill if empty, or merge?
+                #         # Simplest: Update and notify
+                #         st.session_state['price_comparison_data'] = price_df
+                #         st.success(f"✅ Đã tự động trích xuất giá của {len(price_df)} món từ file! Kiểm tra tab 'So sánh Giá' hoặc phần 'Nhập liệu' ở trên.")
+                # except Exception as ex:
+                #     print(f"Error extracting prices: {ex}")
+                # ---------------------------
                 
                 st.success(f"✅ Đã tải thành công {len(df)} đánh giá từ {len(uploaded_files)} file(s)")
                 
@@ -392,15 +485,23 @@ def main():
                             if my_shop_data:
                                 status_text.text(f"📊 Đang phân tích SWOT đầy đủ của mình ({len(my_shop_data)} reviews)...")
                                 progress_bar.progress(30)
-                                my_shop_result = analyze_swot_with_gemini(my_shop_data, analysis_type='FULL')
-                                results['my_shop'] = my_shop_result
+                                try:
+                                    my_shop_result = analyze_swot_with_gemini(my_shop_data, analysis_type='FULL', batch_size=500)
+                                    results['my_shop'] = my_shop_result
+                                except Exception as e:
+                                    st.error(f"❌ Lỗi khi phân tích MY_SHOP: {str(e)}")
+                                    raise
                             
                             # Phân tích COMPETITOR (đầy đủ SWOT từ đánh giá về đối thủ)
                             if competitor_data:
                                 status_text.text(f"📊 Đang phân tích SWOT đầy đủ của đối thủ ({len(competitor_data)} reviews)...")
                                 progress_bar.progress(60)
-                                competitor_result = analyze_swot_with_gemini(competitor_data, analysis_type='FULL')
-                                results['competitor'] = competitor_result
+                                try:
+                                    competitor_result = analyze_swot_with_gemini(competitor_data, analysis_type='FULL', batch_size=500)
+                                    results['competitor'] = competitor_result
+                                except Exception as e:
+                                    st.error(f"❌ Lỗi khi phân tích COMPETITOR: {str(e)}")
+                                    raise
                             
                             # Kết hợp kết quả - giữ nguyên cả 2 SWOT riêng biệt
                             progress_bar.progress(80)
@@ -443,7 +544,42 @@ def main():
                             status_text.text("🤖 AI đang phân tích dữ liệu tổng hợp...")
                             progress_bar.progress(20)
                             
-                            result = analyze_swot_with_gemini(reviews_list)
+                            # Thêm timeout cho toàn bộ quá trình
+                            import signal
+                            import threading
+                            
+                            result = None
+                            error_occurred = [False]
+                            error_message = [None]
+                            
+                            def analyze_with_timeout():
+                                try:
+                                    nonlocal result
+                                    result = analyze_swot_with_gemini(reviews_list)
+                                except Exception as e:
+                                    error_occurred[0] = True
+                                    error_message[0] = str(e)
+                            
+                            # Chạy trong thread với timeout
+                            thread = threading.Thread(target=analyze_with_timeout)
+                            thread.daemon = True
+                            thread.start()
+                            
+                            # Đợi với timeout 5 phút
+                            thread.join(timeout=300)
+                            
+                            if thread.is_alive():
+                                raise TimeoutError(
+                                    "⏱️ Phân tích mất quá nhiều thời gian (>5 phút). "
+                                    "Vui lòng thử lại với ít dữ liệu hơn hoặc kiểm tra kết nối mạng."
+                                )
+                            
+                            if error_occurred[0]:
+                                raise Exception(f"Lỗi khi phân tích: {error_message[0]}")
+                            
+                            if result is None:
+                                raise Exception("Không nhận được kết quả từ AI. Vui lòng thử lại.")
+                            
                             st.session_state['analysis_mode'] = 'combined'
                         
                         progress_bar.progress(60)
@@ -453,6 +589,17 @@ def main():
                             st.error("❌ Kết quả từ AI không đúng định dạng. Vui lòng thử lại.")
                             st.json(result)  # Hiển thị để debug
                             return
+                        
+                        # Enterprise: Enrich SWOT with strategic analysis
+                        progress_bar.progress(70)
+                        status_text.text("🔄 Đang tạo phân tích chiến lược enterprise...")
+                        
+                        try:
+                            result = enrich_swot_with_scores(result)
+                            st.session_state['enterprise_mode'] = True
+                        except Exception as e:
+                            st.warning(f"⚠️ Không thể tạo phân tích enterprise: {str(e)}")
+                            st.session_state['enterprise_mode'] = False
                         
                         progress_bar.progress(80)
                         status_text.text("✅ Phân tích hoàn tất!")
@@ -465,6 +612,7 @@ def main():
                         
                         # Reload để hiển thị kết quả
                         st.rerun()
+
                     
                     except Exception as e:
                         st.error(f"❌ Lỗi khi phân tích: {str(e)}")
@@ -480,197 +628,417 @@ def main():
     if 'swot_result' in st.session_state:
         result = st.session_state['swot_result']
         df = st.session_state.get('df', pd.DataFrame())
+        enterprise_mode = st.session_state.get('enterprise_mode', False)
         
         st.markdown("---")
-        st.header("📊 Kết quả phân tích SWOT")
+        st.header("📊 Kết quả phân tích SWOT Enterprise")
         
         # Executive Summary
         st.subheader("📝 Tóm tắt điều hành")
         st.info(result.get("Executive_Summary", "Không có tóm tắt"))
         
-        # Biểu đồ
+        # Key Insights (Enterprise)
+        key_insights = result.get("Key_Insights", [])
+        if key_insights:
+            st.subheader("Key Insights")
+            for idx, insight in enumerate(key_insights, 1):
+                st.markdown(f"**{idx}.** {insight}")
+        
+        # Biểu đồ cơ bản
         col1, col2 = st.columns(2)
         
         with col1:
-            st.subheader("📈 Phân bố SWOT")
+            st.subheader("Phân bố SWOT")
             pie_chart = create_swot_pie_chart(result)
             st.plotly_chart(pie_chart, use_container_width=True)
         
         with col2:
-            st.subheader("📊 Mức độ Ảnh hưởng/Rủi ro")
+            st.subheader("Mức độ Ảnh hưởng/Rủi ro")
             bar_chart = create_impact_bar_chart(result)
             st.plotly_chart(bar_chart, use_container_width=True)
+        
+        # ========== ENTERPRISE ANALYTICS TABS ==========
+        if enterprise_mode:
+            st.markdown("---")
+            st.header("Phân tích Chiến lược Enterprise")
+            
+            enterprise_tabs = st.tabs([
+                "Ma trận TOWS", 
+                "Ma trận Ưu tiên",
+                "Kế hoạch Hành động",
+                "So sánh Cạnh tranh",
+                "Đánh giá Rủi ro",
+                # "So sánh Giá"
+            ])
+            
+            # Tab 1: TOWS Matrix
+            with enterprise_tabs[0]:
+                st.subheader("Ma trận TOWS - Chiến lược Kết hợp")
+                
+                tows = result.get('TOWS_Matrix', {})
+                
+                if tows:
+                    tows_chart = create_tows_matrix_chart(tows)
+                    st.plotly_chart(tows_chart, use_container_width=True)
+                    
+                    # Display strategies in 2x2 grid
+                    col1, col2 = st.columns(2)
+                    
+                    with col1:
+                        st.markdown("#### SO Strategies (Tấn công)")
+                        so_strategies = tows.get('SO_Strategies', [])
+                        if so_strategies:
+                            for s in so_strategies[:5]:
+                                st.markdown(f"• {s.get('strategy', '')}")
+                        else:
+                            st.info("Không có chiến lược SO")
+                        
+                        st.markdown("#### WO Strategies (Chuyển đổi)")
+                        wo_strategies = tows.get('WO_Strategies', [])
+                        if wo_strategies:
+                            for s in wo_strategies[:5]:
+                                st.markdown(f"• {s.get('strategy', '')}")
+                        else:
+                            st.info("Không có chiến lược WO")
+                    
+                    with col2:
+                        st.markdown("#### ST Strategies (Đa dạng hóa)")
+                        st_strategies = tows.get('ST_Strategies', [])
+                        if st_strategies:
+                            for s in st_strategies[:5]:
+                                st.markdown(f"• {s.get('strategy', '')}")
+                        else:
+                            st.info("Không có chiến lược ST")
+                        
+                        st.markdown("#### WT Strategies (Phòng thủ)")
+                        wt_strategies = tows.get('WT_Strategies', [])
+                        if wt_strategies:
+                            for s in wt_strategies[:5]:
+                                st.markdown(f"• {s.get('strategy', '')}")
+                        else:
+                            st.info("Không có chiến lược WT")
+                else:
+                    st.info("Không có dữ liệu TOWS Matrix")
+            
+            # Tab 2: Priority Matrix
+            with enterprise_tabs[1]:
+                st.subheader("Ma trận Ưu tiên")
+                
+                priority_chart = create_priority_heatmap(result)
+                st.plotly_chart(priority_chart, use_container_width=True)
+                
+                st.markdown("""
+                **Hướng dẫn đọc biểu đồ:**
+                - **Ưu tiên cao** (góc trên phải): Impact cao + Priority score cao → Cần hành động ngay
+                - **Quick Wins** (góc dưới phải): Impact cao + Priority thấp → Dễ thực hiện, tác động lớn
+                - **Theo dõi** (góc trên trái): Impact thấp + Priority cao → Theo dõi và đánh giá lại
+                - **Backlog** (góc dưới trái): Impact thấp + Priority thấp → Đưa vào backlog
+                """)
+            
+            # Tab 3: Action Plan
+            with enterprise_tabs[2]:
+                st.subheader("Kế hoạch Hành động Chiến lược")
+                
+                action_plan = result.get('Strategic_Action_Plan', [])
+                
+                if action_plan:
+                    action_chart = create_action_timeline(action_plan)
+                    st.plotly_chart(action_chart, use_container_width=True)
+                    
+                    # Display action table
+                    st.markdown("### Chi tiết Kế hoạch")
+                    
+                    action_df = pd.DataFrame([{
+                        'Ưu tiên': a.get('priority', ''),
+                        'Hành động': a.get('action', ''),
+                        'Loại': a.get('type', ''),
+                        'Timeline': a.get('timeline', ''),
+                        'Người phụ trách': a.get('owner_role', ''),
+                        'Đầu tư': a.get('estimated_investment', ''),
+                        'Trạng thái': a.get('status', 'Planned')
+                    } for a in action_plan])
+                    
+                    st.dataframe(
+                        action_df,
+                        use_container_width=True,
+                        hide_index=True,
+                        height=400
+                    )
+                else:
+                    st.info("Không có kế hoạch hành động")
+            
+            # Tab 4: Competitive Analysis
+            with enterprise_tabs[3]:
+                st.subheader("So sánh Vị thế Cạnh tranh")
+                
+                competitive = result.get('Competitive_Analysis', {})
+                
+                if competitive:
+                    radar_chart = create_competitive_radar(competitive)
+                    st.plotly_chart(radar_chart, use_container_width=True)
+                    
+                    # Show scores comparison
+                    col1, col2, col3 = st.columns(3)
+                    
+                    with col1:
+                        my_overall = competitive.get('my_overall', 5)
+                        st.metric("Điểm tổng thể của bạn", f"{my_overall}/10")
+                    
+                    with col2:
+                        comp_overall = competitive.get('competitor_overall', 5)
+                        st.metric("Điểm đối thủ trung bình", f"{comp_overall}/10")
+                    
+                    with col3:
+                        advantage = competitive.get('competitive_advantage', False)
+                        if advantage:
+                            st.success("Bạn đang có lợi thế cạnh tranh!")
+                        else:
+                            st.warning("Đối thủ đang có lợi thế")
+                    
+                    # Advantage gaps
+                    st.markdown("### Khoảng cách theo Tiêu chí")
+                    gaps = competitive.get('advantage_gaps', {})
+                    if gaps:
+                        gap_df = pd.DataFrame([{
+                            'Tiêu chí': k.capitalize(),
+                            'Khoảng cách': v,
+                            'Đánh giá': 'Bạn dẫn' if v > 0 else ('Đối thủ dẫn' if v < 0 else 'Ngang bằng')
+                        } for k, v in gaps.items()])
+                        st.dataframe(gap_df, use_container_width=True, hide_index=True)
+                else:
+                    st.info("Không có dữ liệu cạnh tranh")
+            
+            # Tab 5: Risk Assessment
+            with enterprise_tabs[4]:
+                st.subheader("Ma trận Đánh giá Rủi ro")
+                
+                risk_data = result.get('Risk_Assessment', result.get('SWOT_Analysis', {}).get('Threats', []))
+                
+                if risk_data:
+                    risk_chart = create_risk_matrix(risk_data)
+                    st.plotly_chart(risk_chart, use_container_width=True)
+                    
+                    # Risk table
+                    st.markdown("### Chi tiết Rủi ro")
+                    risk_df = pd.DataFrame([{
+                        'Rủi ro': r.get('topic', ''),
+                        'Xác suất': r.get('probability', r.get('risk_level', 'Medium')),
+                        'Mức độ': r.get('severity', r.get('risk_level', 'Medium')),
+                        'Điểm rủi ro': r.get('composite_risk_score', 'N/A'),
+                        'Phân loại': r.get('risk_category', 'Medium'),
+                        'Khuyến nghị': r.get('recommendation', r.get('contingency_plan', 'N/A'))
+                    } for r in risk_data])
+                    
+                    st.dataframe(
+                        risk_df,
+                        use_container_width=True,
+                        hide_index=True
+                    )
+                else:
+                    st.info("Không có dữ liệu rủi ro")
+            
+            # Tab 6: Price Comparisons
+            # with enterprise_tabs[5]:
+            #     st.subheader("So sánh Giá Sản phẩm")
+                
+            #     price_data = st.session_state.get('price_comparison_data')
+                
+            #     if price_data is not None and not price_data.empty:
+            #         # Remove empty rows
+            #         valid_price_data = price_data.dropna(subset=['Món'])
+            #         valid_price_data = valid_price_data[valid_price_data['Món'] != '']
+                    
+            #         if not valid_price_data.empty:
+            #             price_chart = create_price_comparison_chart(valid_price_data)
+            #             st.plotly_chart(price_chart, use_container_width=True)
+                        
+            #             # Simple insights
+            #             avg_diff = ((valid_price_data['Giá của bạn'].sum() - valid_price_data['Giá đối thủ'].sum()) / valid_price_data['Giá đối thủ'].sum() * 100) if valid_price_data['Giá đối thủ'].sum() > 0 else 0
+                        
+            #             if avg_diff < -5:
+            #                 st.success(f"💡 Giá của bạn thấp hơn đối thủ trung bình **{abs(avg_diff):.1f}%** - Lợi thế cạnh tranh về chi phí!")
+            #             elif avg_diff > 5:
+            #                 st.warning(f"💡 Giá của bạn cao hơn đối thủ trung bình **{avg_diff:.1f}%** - Cần chứng minh giá trị vượt trội (Premium positioning).")
+            #             else:
+            #                 st.info(f"💡 Giá của bạn tương đương đối thủ (chênh lệch **{avg_diff:.1f}%**) - Cạnh tranh trực tiếp.")
+            #         else:
+            #             st.info("Vui lòng nhập dữ liệu giá trong phần 'Nhập liệu So sánh Giá' ở trên.")
+            #     else:
+            #         st.info("Vui lòng nhập dữ liệu giá trong phần 'Nhập liệu So sánh Giá' ở trên để xem biểu đồ.")
+        
+        st.markdown("---")
         
         # Chi tiết từng nhóm SWOT
         swot = result.get("SWOT_Analysis", {})
         analysis_mode = st.session_state.get('analysis_mode', 'combined')
+
         
         if analysis_mode == 'separate':
             # Hiển thị 2 cột: SWOT đầy đủ của mình và SWOT đầy đủ của đối thủ
             st.markdown("---")
-            st.subheader("📊 SWOT Phân tích riêng biệt")
+            st.subheader("SWOT Phân tích riêng biệt")
+            
+            # Helper function để tạo card cho mỗi SWOT item (dùng cho cả 2 cột)
+            def display_swot_item_cards(items: list, category: str):
+                """Hiển thị SWOT items dạng expandable cards"""
+                if not items:
+                    st.info(f"Không có {category.lower()} nào được xác định")
+                    return
+                
+                for item in items:
+                    topic = item.get('topic', 'N/A')
+                    description = item.get('description', 'N/A')
+                    priority = item.get('priority_score', '')
+                    impact = item.get('impact') or item.get('risk_level', '')
+                    
+                    title = f"**{topic}**"
+                    if priority:
+                        title += f" ({priority})"
+                    if impact:
+                        title += f" • {impact}"
+                    
+                    with st.expander(title, expanded=False):
+                        st.markdown(f"**Mô tả:** {description}")
+                        
+                        if category == "Strengths" and item.get('leverage_strategy'):
+                            st.markdown(f"**Chiến lược tận dụng:** {item.get('leverage_strategy')}")
+                        
+                        if category == "Weaknesses":
+                            if item.get('root_cause'):
+                                st.markdown(f"**Nguyên nhân:** {item.get('root_cause')}")
+                            if item.get('mitigation_plan'):
+                                st.markdown(f"**Kế hoạch khắc phục:** {item.get('mitigation_plan')}")
+                        
+                        if category == "Opportunities" and item.get('action_idea'):
+                            st.markdown(f"**Gợi ý hành động:** {item.get('action_idea')}")
+                        
+                        if category == "Threats" and item.get('contingency_plan'):
+                            st.markdown(f"**Kế hoạch ứng phó:** {item.get('contingency_plan')}")
             
             col1, col2 = st.columns(2)
             
             with col1:
-                st.markdown("### 🏪 SWOT CỦA MÌNH")
-                
+                st.markdown("### SWOT CỦA MÌNH")
                 my_shop_swot = result.get("My_Shop_SWOT", {})
                 
-                # Strengths
-                st.markdown("#### 💪 Strengths (Điểm mạnh)")
-                my_strengths = my_shop_swot.get("Strengths", [])
-                if my_strengths:
-                    st.dataframe(
-                        pd.DataFrame(my_strengths),
-                        use_container_width=True,
-                        hide_index=True
-                    )
-                else:
-                    st.info("Không có điểm mạnh nào được xác định")
+                st.markdown("#### Strengths (Điểm mạnh)")
+                display_swot_item_cards(my_shop_swot.get("Strengths", []), "Strengths")
                 
-                # Weaknesses
-                st.markdown("#### ⚠️ Weaknesses (Điểm yếu)")
-                my_weaknesses = my_shop_swot.get("Weaknesses", [])
-                if my_weaknesses:
-                    st.dataframe(
-                        pd.DataFrame(my_weaknesses),
-                        use_container_width=True,
-                        hide_index=True
-                    )
-                else:
-                    st.info("Không có điểm yếu nào được xác định")
+                st.markdown("#### Weaknesses (Điểm yếu)")
+                display_swot_item_cards(my_shop_swot.get("Weaknesses", []), "Weaknesses")
                 
-                # Opportunities
-                st.markdown("#### 🎯 Opportunities (Cơ hội)")
-                my_opportunities = my_shop_swot.get("Opportunities", [])
-                if my_opportunities:
-                    st.dataframe(
-                        pd.DataFrame(my_opportunities),
-                        use_container_width=True,
-                        hide_index=True
-                    )
-                else:
-                    st.info("Không có cơ hội nào được xác định")
+                st.markdown("#### Opportunities (Cơ hội)")
+                display_swot_item_cards(my_shop_swot.get("Opportunities", []), "Opportunities")
                 
-                # Threats
-                st.markdown("#### 🔥 Threats (Thách thức)")
-                my_threats = my_shop_swot.get("Threats", [])
-                if my_threats:
-                    st.dataframe(
-                        pd.DataFrame(my_threats),
-                        use_container_width=True,
-                        hide_index=True
-                    )
-                else:
-                    st.info("Không có thách thức nào được xác định")
+                st.markdown("#### Threats (Thách thức)")
+                display_swot_item_cards(my_shop_swot.get("Threats", []), "Threats")
             
             with col2:
-                st.markdown("### ⚔️ SWOT CỦA ĐỐI THỦ")
-                
+                st.markdown("### SWOT CỦA ĐỐI THỦ")
                 competitor_swot = result.get("Competitor_SWOT", {})
                 
-                # Strengths
-                st.markdown("#### 💪 Strengths (Điểm mạnh)")
-                comp_strengths = competitor_swot.get("Strengths", [])
-                if comp_strengths:
-                    st.dataframe(
-                        pd.DataFrame(comp_strengths),
-                        use_container_width=True,
-                        hide_index=True
-                    )
-                else:
-                    st.info("Không có điểm mạnh nào được xác định")
+                st.markdown("#### Strengths (Điểm mạnh)")
+                display_swot_item_cards(competitor_swot.get("Strengths", []), "Strengths")
                 
-                # Weaknesses
-                st.markdown("#### ⚠️ Weaknesses (Điểm yếu)")
-                comp_weaknesses = competitor_swot.get("Weaknesses", [])
-                if comp_weaknesses:
-                    st.dataframe(
-                        pd.DataFrame(comp_weaknesses),
-                        use_container_width=True,
-                        hide_index=True
-                    )
-                else:
-                    st.info("Không có điểm yếu nào được xác định")
+                st.markdown("#### Weaknesses (Điểm yếu)")
+                display_swot_item_cards(competitor_swot.get("Weaknesses", []), "Weaknesses")
                 
-                # Opportunities
-                st.markdown("#### 🎯 Opportunities (Cơ hội)")
-                comp_opportunities = competitor_swot.get("Opportunities", [])
-                if comp_opportunities:
-                    st.dataframe(
-                        pd.DataFrame(comp_opportunities),
-                        use_container_width=True,
-                        hide_index=True
-                    )
-                else:
-                    st.info("Không có cơ hội nào được xác định")
+                st.markdown("#### Opportunities (Cơ hội)")
+                display_swot_item_cards(competitor_swot.get("Opportunities", []), "Opportunities")
                 
-                # Threats
-                st.markdown("#### 🔥 Threats (Thách thức)")
-                comp_threats = competitor_swot.get("Threats", [])
-                if comp_threats:
-                    st.dataframe(
-                        pd.DataFrame(comp_threats),
-                        use_container_width=True,
-                        hide_index=True
-                    )
-                else:
-                    st.info("Không có thách thức nào được xác định")
+                st.markdown("#### Threats (Thách thức)")
+                display_swot_item_cards(competitor_swot.get("Threats", []), "Threats")
+
         else:
-            # Hiển thị dạng tổng hợp (như cũ)
+            # Hiển thị dạng tổng hợp với Cards (để text wrap đúng)
+            swot_data = result.get("SWOT_Analysis", {})
+            
+            # Helper function để tạo card cho mỗi SWOT item
+            def display_swot_cards(items: list, category: str):
+                """Hiển thị SWOT items dạng expandable cards"""
+                if not items:
+                    st.info(f"Không có {category.lower()} nào được xác định")
+                    return
+                
+                for idx, item in enumerate(items, 1):
+                    topic = item.get('topic', 'N/A')
+                    description = item.get('description', 'N/A')
+                    priority = item.get('priority_score', '')
+                    impact = item.get('impact') or item.get('risk_level', '')
+                    
+                    # Tạo title ngắn gọn - clean version
+                    title = f"**{topic}**"
+                    if priority:
+                        title += f" ({priority})"
+                    if impact:
+                        title += f" • {impact}"
+                    
+                    with st.expander(title, expanded=False):
+                        st.markdown(f"**Mô tả:** {description}")
+                        
+                        # Hiển thị các fields khác tùy theo category
+                        if category == "Strengths":
+                            if item.get('leverage_strategy'):
+                                st.markdown(f"**Chiến lược tận dụng:** {item.get('leverage_strategy')}")
+                            if item.get('kpi_metrics'):
+                                kpis = item.get('kpi_metrics')
+                                if isinstance(kpis, list):
+                                    st.markdown(f"**KPIs:** {', '.join(kpis)}")
+                        
+                        elif category == "Weaknesses":
+                            if item.get('root_cause'):
+                                st.markdown(f"**Nguyên nhân gốc rễ:** {item.get('root_cause')}")
+                            if item.get('mitigation_plan'):
+                                st.markdown(f"**Kế hoạch khắc phục:** {item.get('mitigation_plan')}")
+                            if item.get('improvement_cost'):
+                                st.markdown(f"**Chi phí cải thiện:** {item.get('improvement_cost')}")
+                        
+                        elif category == "Opportunities":
+                            if item.get('action_idea'):
+                                st.markdown(f"**Gợi ý hành động:** {item.get('action_idea')}")
+                            col1, col2 = st.columns(2)
+                            with col1:
+                                if item.get('market_size'):
+                                    st.markdown(f"**Quy mô:** {item.get('market_size')}")
+                            with col2:
+                                if item.get('time_to_capture'):
+                                    st.markdown(f"**Thời gian:** {item.get('time_to_capture')}")
+                        
+                        elif category == "Threats":
+                            col1, col2 = st.columns(2)
+                            with col1:
+                                if item.get('probability'):
+                                    st.markdown(f"**Xác suất:** {item.get('probability')}")
+                            with col2:
+                                if item.get('severity'):
+                                    st.markdown(f"**Mức độ:** {item.get('severity')}")
+                            if item.get('contingency_plan'):
+                                st.markdown(f"**Kế hoạch ứng phó:** {item.get('contingency_plan')}")
+            
             # Strengths
             st.markdown("---")
-            st.subheader("💪 Strengths (Điểm mạnh)")
-            strengths = format_swot_table_data(result, "Strengths")
-            if strengths:
-                st.dataframe(
-                    pd.DataFrame(strengths),
-                    use_container_width=True,
-                    hide_index=True
-                )
-            else:
-                st.info("Không có điểm mạnh nào được xác định")
+            st.subheader("Strengths (Điểm mạnh)")
+            display_swot_cards(swot_data.get("Strengths", []), "Strengths")
             
             # Weaknesses
-            st.subheader("⚠️ Weaknesses (Điểm yếu)")
-            weaknesses = format_swot_table_data(result, "Weaknesses")
-            if weaknesses:
-                st.dataframe(
-                    pd.DataFrame(weaknesses),
-                    use_container_width=True,
-                    hide_index=True
-                )
-            else:
-                st.info("Không có điểm yếu nào được xác định")
+            st.subheader("Weaknesses (Điểm yếu)")
+            display_swot_cards(swot_data.get("Weaknesses", []), "Weaknesses")
             
             # Opportunities
-            st.subheader("🎯 Opportunities (Cơ hội)")
-            opportunities = format_swot_table_data(result, "Opportunities")
-            if opportunities:
-                st.dataframe(
-                    pd.DataFrame(opportunities),
-                    use_container_width=True,
-                    hide_index=True
-                )
-            else:
-                st.info("Không có cơ hội nào được xác định")
+            st.subheader("Opportunities (Cơ hội)")
+            display_swot_cards(swot_data.get("Opportunities", []), "Opportunities")
             
             # Threats
-            st.subheader("🔥 Threats (Thách thức)")
-            threats = format_swot_table_data(result, "Threats")
-            if threats:
-                st.dataframe(
-                    pd.DataFrame(threats),
-                    use_container_width=True,
-                    hide_index=True
-                )
-            else:
-                st.info("Không có thách thức nào được xác định")
+            st.subheader("Threats (Thách thức)")
+            display_swot_cards(swot_data.get("Threats", []), "Threats")
+
+
+
+
         
         # Export kết quả
         st.markdown("---")
-        st.subheader("💾 Export kết quả")
+        st.subheader("Export kết quả")
         
         col1, col2 = st.columns(2)
         
@@ -683,27 +1051,27 @@ def main():
                     file_info=st.session_state.get('file_info', None)
                 )
                 st.download_button(
-                    label="📊 Tải xuống báo cáo Excel (có biểu đồ)",
+                    label="Tải xuống báo cáo Excel (có biểu đồ)",
                     data=excel_file,
                     file_name="swot_analysis_report.xlsx",
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                 )
             except Exception as e:
-                st.error(f"❌ Lỗi khi tạo file Excel: {str(e)}")
+                st.error(f"Lỗi khi tạo file Excel: {str(e)}")
                 st.exception(e)
         
         with col2:
             # Export JSON
             json_str = json.dumps(result, ensure_ascii=False, indent=2)
             st.download_button(
-                label="📥 Tải xuống kết quả JSON",
+                label="Tải xuống kết quả JSON",
                 data=json_str,
                 file_name="swot_analysis_result.json",
                 mime="application/json"
             )
         
         # Nút phân tích lại
-        if st.button("🔄 Phân tích lại với dữ liệu mới", use_container_width=True):
+        if st.button("Phân tích lại với dữ liệu mới", use_container_width=True):
             if 'swot_result' in st.session_state:
                 del st.session_state['swot_result']
             if 'df' in st.session_state:

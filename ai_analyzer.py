@@ -3,6 +3,7 @@ AI Analyzer Module - Xử lý phân tích SWOT bằng Gemini API
 """
 import json
 import os
+import time
 import pandas as pd
 import google.generativeai as genai
 from typing import Dict, List, Any
@@ -29,12 +30,16 @@ if GEMINI_API_KEY:
     genai.configure(api_key=GEMINI_API_KEY)
 
 
-def build_system_prompt() -> str:
+def build_system_prompt(analysis_level: str = 'enterprise') -> str:
     """
     Xây dựng System Prompt cho AI theo yêu cầu của người dùng
+    
+    Args:
+        analysis_level: 'basic', 'standard', hoặc 'enterprise'
     """
-    return """# ROLE (VAI TRÒ)
-Bạn là một Chuyên gia Phân tích Dữ liệu và Chiến lược Kinh doanh F&B (Data Analyst & Business Strategist) với 20 năm kinh nghiệm. Nhiệm vụ của bạn là đọc các đánh giá thô (raw reviews), phân tích cảm xúc, gom nhóm chủ đề và xây dựng mô hình SWOT.
+    
+    base_prompt = """# ROLE (VAI TRÒ)
+Bạn là một Chuyên gia Phân tích Dữ liệu và Chiến lược Kinh doanh F&B (Data Analyst & Business Strategist) với 20 năm kinh nghiệm. Nhiệm vụ của bạn là đọc các đánh giá thô (raw reviews), phân tích cảm xúc, gom nhóm chủ đề và xây dựng mô hình SWOT CHUYÊN SÂU cấp doanh nghiệp.
 
 # INPUT DATA (DỮ LIỆU ĐẦU VÀO)
 Bạn sẽ nhận được một danh sách các đánh giá từ khách hàng với đầy đủ thông tin. Mỗi đánh giá có thể bao gồm:
@@ -47,12 +52,9 @@ Bạn sẽ nhận được một danh sách các đánh giá từ khách hàng v
 - "DATE": Ngày đánh giá (nếu có)
 - "USER": Tên người đánh giá (nếu có)
 
-Hãy sử dụng TẤT CẢ thông tin có sẵn để phân tích SWOT một cách toàn diện. Ví dụ:
-- Nếu có thông tin về giá, hãy phân tích về giá cả và so sánh.
-- Nếu có rating, hãy xem xét mối tương quan giữa rating và nội dung đánh giá.
-- Nếu có menu item, hãy phân tích theo từng loại sản phẩm.
+Hãy sử dụng TẤT CẢ thông tin có sẵn để phân tích SWOT một cách toàn diện.
 
-# LOGIC PHÂN TÍCH & XỬ LÝ (QUAN TRỌNG - TỐI ƯU HÓA)
+# LOGIC PHÂN TÍCH & XỬ LÝ (ENTERPRISE-LEVEL)
 Hãy thực hiện quy trình suy luận hiệu quả và chính xác:
 
 1. **Phân tích Cảm xúc & Khía cạnh (Sentiment + Aspect):** 
@@ -63,7 +65,6 @@ Hãy thực hiện quy trình suy luận hiệu quả và chính xác:
    - Gom các đánh giá có cùng khía cạnh VÀ cảm xúc lại.
    - Tạo mô tả tổng hợp ngắn gọn nhưng đầy đủ (1-2 câu).
    - Ưu tiên các vấn đề xuất hiện nhiều lần.
-   - Nếu có thông tin về giá/rating/menu, hãy phân tích theo từng nhóm.
 
 3. **Mapping SWOT (Quy tắc xếp loại):**
    
@@ -77,40 +78,89 @@ Hãy thực hiện quy trình suy luận hiệu quả và chính xác:
    **Khi phân tích đánh giá về COMPETITOR (đối thủ):**
    - COMPETITOR + Tích cực -> THREATS (Thách thức - đối thủ làm tốt hơn).
    - COMPETITOR + Tiêu cực -> OPPORTUNITIES (Cơ hội - khai thác điểm yếu đối thủ).
-   - Từ đánh giá về COMPETITOR, cũng có thể suy ra:
-     * STRENGTHS: Điểm mạnh của đối thủ (để học hỏi hoặc cạnh tranh).
-     * WEAKNESSES: Điểm yếu của đối thủ (để khai thác).
-   
-   **QUAN TRỌNG:** Khi phân tích một nguồn (MY_SHOP hoặc COMPETITOR), hãy phân tích đầy đủ 4 phần SWOT dựa trên context và insights từ dữ liệu đó.
 
-4. **Phân tích sâu (Deep Analysis):**
-   - Nếu có thông tin về giá: Phân tích về giá cả, so sánh giá trị.
-   - Nếu có rating: Phân tích mối tương quan giữa rating và nội dung.
-   - Nếu có menu: Phân tích theo từng loại sản phẩm/món.
-   - Đưa ra insights cụ thể, không chỉ mô tả chung chung.
+4. **PHÂN TÍCH CHIẾN LƯỢC DOANH NGHIỆP (QUAN TRỌNG):**
+   - Đánh giá MỨC ĐỘ ẢNH HƯỞNG (Impact): High/Medium/Low
+   - Đánh giá MỨC ĐỘ KHẢ THI để cải thiện (Feasibility): High/Medium/Low
+   - Đánh giá MỨC ĐỘ KHẨN CẤP (Urgency): High/Medium/Low
+   - Đề xuất HÀNH ĐỘNG CỤ THỂ cho mỗi item
+   - Xác định KPIs để đo lường kết quả"""
 
-# OUTPUT FORMAT (ĐỊNH DẠNG ĐẦU RA)
+    enterprise_output = """
+# OUTPUT FORMAT (ĐỊNH DẠNG ĐẦU RA - ENTERPRISE LEVEL)
 Trả về kết quả duy nhất dưới dạng **JSON Object** (không kèm lời dẫn), với cấu trúc sau:
 
 {
   "SWOT_Analysis": {
     "Strengths": [
-      {"topic": "Tên chủ đề ngắn", "description": "Mô tả chi tiết và sâu sắc về điểm mạnh này dựa trên dữ liệu", "impact": "Mức độ ảnh hưởng (High/Medium/Low)"}
+      {
+        "topic": "Tên chủ đề ngắn gọn",
+        "description": "Mô tả chi tiết và sâu sắc về điểm mạnh này",
+        "impact": "High/Medium/Low",
+        "priority_score": 8.5,
+        "kpi_metrics": ["KPI cụ thể 1", "KPI cụ thể 2"],
+        "leverage_strategy": "Cách tận dụng điểm mạnh này để tăng trưởng"
+      }
     ],
     "Weaknesses": [
-      {"topic": "Tên chủ đề ngắn", "description": "Mô tả chi tiết vấn đề đang gặp phải", "root_cause": "Dự đoán nguyên nhân gốc rễ", "impact": "High/Medium/Low"}
+      {
+        "topic": "Tên chủ đề ngắn gọn",
+        "description": "Mô tả chi tiết vấn đề đang gặp phải",
+        "impact": "High/Medium/Low",
+        "root_cause": "Nguyên nhân gốc rễ của vấn đề",
+        "priority_score": 7.0,
+        "improvement_cost": "High/Medium/Low",
+        "mitigation_plan": "Kế hoạch khắc phục ngắn gọn với bước cụ thể"
+      }
     ],
     "Opportunities": [
-      {"topic": "Tên chủ đề ngắn", "description": "Mô tả cơ hội từ thị trường hoặc điểm yếu đối thủ", "action_idea": "Gợi ý hành động ngắn gọn"}
+      {
+        "topic": "Tên cơ hội ngắn gọn",
+        "description": "Mô tả cơ hội từ thị trường hoặc điểm yếu đối thủ",
+        "action_idea": "Gợi ý hành động cụ thể",
+        "priority_score": 9.0,
+        "market_size": "Large/Medium/Small",
+        "time_to_capture": "Short term/Medium term/Long term",
+        "required_investment": "High/Medium/Low"
+      }
     ],
     "Threats": [
-      {"topic": "Tên chủ đề ngắn", "description": "Mô tả rủi ro từ đối thủ", "risk_level": "High/Medium/Low"}
+      {
+        "topic": "Tên thách thức ngắn gọn",
+        "description": "Mô tả rủi ro từ đối thủ hoặc thị trường",
+        "risk_level": "High/Medium/Low",
+        "probability": "High/Medium/Low",
+        "severity": "High/Medium/Low",
+        "contingency_plan": "Kế hoạch ứng phó nếu rủi ro xảy ra"
+      }
     ]
   },
-  "Executive_Summary": "Một đoạn văn ngắn khoảng 50 từ tổng kết tình hình chung."
+  "Key_Insights": [
+    "Insight quan trọng 1 từ phân tích",
+    "Insight quan trọng 2 từ phân tích",
+    "Insight quan trọng 3 từ phân tích"
+  ],
+  "Competitive_Analysis": {
+      "my_scores": {
+          "quality": 8, "price": 7, "service": 6, "location": 9, "brand": 7, "innovation": 5
+      },
+      "competitor_scores": {
+          "quality": 7, "price": 6, "service": 8, "location": 8, "brand": 9, "innovation": 6
+      },
+      "justification": "Giải thích ngắn gọn tại sao chấm điểm như vậy (ví dụ: Đối thủ có thương hiệu mạnh nhưng giá cao...)"
+  },
+  "Executive_Summary": "Một đoạn văn ngắn khoảng 100 từ tổng kết tình hình chung, bao gồm: tình trạng hiện tại, điểm nổi bật nhất, và khuyến nghị ưu tiên hàng đầu."
 }
 
-QUAN TRỌNG: Chỉ trả về JSON, không thêm bất kỳ văn bản giải thích nào khác."""
+QUAN TRỌNG: 
+1. Chỉ trả về JSON, không thêm bất kỳ văn bản giải thích nào khác.
+2. priority_score là số từ 1-10, càng cao càng quan trọng.
+3. Mỗi category phải có ít nhất 1 item nếu có dữ liệu liên quan.
+4. Đảm bảo mỗi item có đầy đủ các trường như định dạng trên."""
+
+    return base_prompt + enterprise_output
+
+
 
 
 def format_reviews_for_prompt(reviews_data: List[Dict[str, Any]], compact: bool = True) -> str:
@@ -214,7 +264,27 @@ def analyze_swot_with_gemini(reviews_data: List[Dict[str, Any]], batch_size: int
     
     if total_reviews <= batch_size:
         # Xử lý một lần nếu dữ liệu nhỏ
-        return _analyze_single_batch(model, reviews_data, analysis_type)
+        import streamlit as st
+        progress_bar = st.progress(0)
+        status_text = st.empty()
+        
+        try:
+            status_text.text("🔄 Đang gửi dữ liệu đến AI...")
+            progress_bar.progress(0.3)
+            
+            result = _analyze_single_batch(model, reviews_data, analysis_type)
+            
+            progress_bar.progress(1.0)
+            status_text.text("✅ Hoàn thành phân tích!")
+            time.sleep(0.5)  # Hiển thị thông báo thành công một chút
+            progress_bar.empty()
+            status_text.empty()
+            
+            return result
+        except Exception as e:
+            progress_bar.empty()
+            status_text.empty()
+            raise
     else:
         # Xử lý nhiều batch và tổng hợp kết quả (TỐI ƯU HÓA)
         import streamlit as st
@@ -244,8 +314,17 @@ def analyze_swot_with_gemini(reviews_data: List[Dict[str, Any]], batch_size: int
                 batch = my_shop_data[i:i + batch_size]
                 batch_num = (i // batch_size) + 1
                 
-                with st.spinner(f"🔄 MY_SHOP batch {batch_num}/{num_batches_my_shop} ({len(batch)} reviews)..."):
-                    batch_result = _analyze_single_batch(model, batch, 'MY_SHOP_ONLY' if analysis_type == 'MY_SHOP_ONLY' else 'FULL')
+                # Progress indicator chi tiết
+                progress_value = (batch_num - 1) / num_batches_my_shop
+                progress_text = f"🔄 MY_SHOP batch {batch_num}/{num_batches_my_shop} ({len(batch)} reviews)..."
+                
+                with st.spinner(progress_text):
+                    try:
+                        batch_result = _analyze_single_batch(model, batch, 'MY_SHOP_ONLY' if analysis_type == 'MY_SHOP_ONLY' else 'FULL')
+                    except Exception as e:
+                        st.error(f"❌ Lỗi khi xử lý MY_SHOP batch {batch_num}: {str(e)}")
+                        # Tiếp tục với batch tiếp theo thay vì dừng hoàn toàn
+                        continue
                     
                     all_results["SWOT_Analysis"]["Strengths"].extend(
                         batch_result.get("SWOT_Analysis", {}).get("Strengths", [])
@@ -262,8 +341,16 @@ def analyze_swot_with_gemini(reviews_data: List[Dict[str, Any]], batch_size: int
                 batch = competitor_data[i:i + batch_size]
                 batch_num = (i // batch_size) + 1
                 
-                with st.spinner(f"🔄 COMPETITOR batch {batch_num}/{num_batches_competitor} ({len(batch)} reviews)..."):
-                    batch_result = _analyze_single_batch(model, batch, 'COMPETITOR_ONLY' if analysis_type == 'COMPETITOR_ONLY' else 'FULL')
+                # Progress indicator chi tiết
+                progress_text = f"🔄 COMPETITOR batch {batch_num}/{num_batches_competitor} ({len(batch)} reviews)..."
+                
+                with st.spinner(progress_text):
+                    try:
+                        batch_result = _analyze_single_batch(model, batch, 'COMPETITOR_ONLY' if analysis_type == 'COMPETITOR_ONLY' else 'FULL')
+                    except Exception as e:
+                        st.error(f"❌ Lỗi khi xử lý COMPETITOR batch {batch_num}: {str(e)}")
+                        # Tiếp tục với batch tiếp theo thay vì dừng hoàn toàn
+                        continue
                     
                     all_results["SWOT_Analysis"]["Opportunities"].extend(
                         batch_result.get("SWOT_Analysis", {}).get("Opportunities", [])
@@ -393,8 +480,49 @@ def _analyze_single_batch(model, reviews_data: List[Dict[str, Any]], analysis_ty
 6. Tuân thủ hướng dẫn phân tích theo loại ở trên"""
     
     try:
-        # Gọi API Gemini
-        response = model.generate_content(full_prompt)
+        # Gọi API Gemini với timeout và retry
+        import time
+        max_retries = 3
+        timeout_seconds = 120  # 2 phút timeout
+        
+        response = None
+        last_error = None
+        
+        for attempt in range(max_retries):
+            try:
+                # Gọi API với timeout (sử dụng generation_config)
+                # Tăng max_output_tokens để tránh JSON bị cắt cụt
+                generation_config = {
+                    'max_output_tokens': 16384,  # Tăng từ 8192 lên 16384 để đủ cho response dài
+                    'temperature': 0.7,
+                }
+                
+                # Thử gọi API
+                start_time = time.time()
+                response = model.generate_content(
+                    full_prompt,
+                    generation_config=generation_config
+                )
+                elapsed_time = time.time() - start_time
+                
+                # Kiểm tra timeout
+                if elapsed_time > timeout_seconds:
+                    raise TimeoutError(f"API call mất hơn {timeout_seconds} giây")
+                
+                break  # Thành công, thoát khỏi retry loop
+                
+            except Exception as e:
+                last_error = e
+                if attempt < max_retries - 1:
+                    # Exponential backoff: 2^attempt seconds
+                    wait_time = 2 ** attempt
+                    time.sleep(wait_time)
+                    continue
+                else:
+                    raise
+        
+        if response is None:
+            raise Exception(f"Không thể nhận phản hồi từ API sau {max_retries} lần thử. Lỗi cuối: {last_error}")
         
         # Lấy text response
         response_text = response.text.strip()
@@ -409,9 +537,27 @@ def _analyze_single_batch(model, reviews_data: List[Dict[str, Any]], analysis_ty
         
         response_text = response_text.strip()
         
-        # Làm sạch JSON: loại bỏ ký tự control character không hợp lệ
+        # QUAN TRỌNG: Xử lý escape sequences trong JSON string
+        # Response có thể chứa \n literal (2 ký tự: backslash + n) thay vì newline thực sự
         import re
-        # Thay thế các ký tự control character (ngoại trừ \n, \r, \t) bằng khoảng trắng
+        import codecs
+        
+        # Kiểm tra xem có chứa escape sequences literal không
+        if '\\n' in response_text or '\\t' in response_text or '\\r' in response_text:
+            # Decode escape sequences: chuyển \n literal thành newline thực sự
+            # Nhưng phải cẩn thận: chỉ decode trong JSON structure, không decode trong string values
+            # Cách đơn giản nhất: decode toàn bộ, vì JSON cho phép newline trong string values
+            try:
+                # Thử decode escape sequences
+                response_text = codecs.decode(response_text, 'unicode_escape')
+            except Exception:
+                # Nếu decode không được (có thể do có escape sequences không hợp lệ), thử thay thế thủ công
+                # Chỉ thay thế các escape sequences hợp lệ trong JSON
+                response_text = response_text.replace('\\n', '\n').replace('\\t', '\t').replace('\\r', '\r')
+                # Không thay thế \\" và \\\\ vì có thể là escape trong string values
+        
+        # Làm sạch JSON: loại bỏ ký tự control character không hợp lệ (nhưng giữ \n, \r, \t hợp lệ)
+        # Chỉ loại bỏ các ký tự control không hợp lệ trong JSON
         response_text = re.sub(r'[\x00-\x08\x0b-\x0c\x0e-\x1f\x7f-\x9f]', ' ', response_text)
         
         # Thử parse JSON
@@ -426,15 +572,117 @@ def _analyze_single_batch(model, reviews_data: List[Dict[str, Any]], analysis_ty
                 # Thử lại với JSON đã extract
                 try:
                     result = json.loads(response_text)
-                except json.JSONDecodeError:
+                except json.JSONDecodeError as e2:
                     # Nếu vẫn lỗi, thử fix các vấn đề phổ biến
-                    # Fix: escape các ký tự đặc biệt trong string
-                    response_text = response_text.replace('\n', '\\n').replace('\r', '\\r').replace('\t', '\\t')
-                    # Fix: loại bỏ trailing comma
-                    response_text = re.sub(r',\s*}', '}', response_text)
-                    response_text = re.sub(r',\s*]', ']', response_text)
-                    # Thử parse lại
-                    result = json.loads(response_text)
+                    # Fix 1: Loại bỏ trailing comma
+                    response_text = re.sub(r',(\s*[}\]])', r'\1', response_text)
+                    
+                    # Fix 2: Xử lý JSON bị cắt cụt - đóng các brackets/braces chưa đóng
+                    error_pos = getattr(e2, 'pos', None)
+                    error_line = getattr(e2, 'lineno', None)
+                    error_col = getattr(e2, 'colno', None)
+                    
+                    # Đếm số lượng {, }, [, ] để xem có thiếu không
+                    open_braces = response_text.count('{')
+                    close_braces = response_text.count('}')
+                    open_brackets = response_text.count('[')
+                    close_brackets = response_text.count(']')
+                    
+                    # Nếu JSON bị cắt cụt (thiếu closing brackets/braces), thử đóng chúng
+                    if open_braces > close_braces or open_brackets > close_brackets:
+                        fixed_text = response_text
+                        
+                        # Tìm vị trí cuối cùng có thể chèn closing brackets
+                        # Tìm vị trí sau dấu phẩy hoặc sau giá trị cuối cùng
+                        last_comma_pos = response_text.rfind(',')
+                        if last_comma_pos > 0:
+                            # Loại bỏ dấu phẩy cuối và đóng các cấu trúc
+                            fixed_text = response_text[:last_comma_pos]
+                        
+                        # Đóng arrays trước
+                        for _ in range(open_brackets - close_brackets):
+                            fixed_text += ']'
+                        
+                        # Đóng objects sau
+                        for _ in range(open_braces - close_braces):
+                            fixed_text += '}'
+                        
+                        # Thử parse với text đã fix
+                        try:
+                            result = json.loads(fixed_text)
+                        except:
+                            # Nếu vẫn không được, tiếp tục với các fix khác
+                            pass
+                    
+                    # Fix 3: Tìm JSON hợp lệ bằng cách đếm braces từ đầu (xử lý string trong JSON)
+                    brace_count = 0
+                    bracket_count = 0
+                    last_valid_pos = len(response_text)
+                    in_string = False
+                    escape_next = False
+                    
+                    for i, char in enumerate(response_text):
+                        if escape_next:
+                            escape_next = False
+                            continue
+                        
+                        if char == '\\':
+                            escape_next = True
+                            continue
+                        
+                        if char == '"' and not escape_next:
+                            in_string = not in_string
+                            continue
+                        
+                        if not in_string:
+                            if char == '{':
+                                brace_count += 1
+                            elif char == '}':
+                                brace_count -= 1
+                                if brace_count == 0 and bracket_count == 0:
+                                    last_valid_pos = i + 1
+                                    break
+                            elif char == '[':
+                                bracket_count += 1
+                            elif char == ']':
+                                bracket_count -= 1
+                    
+                    # Thử parse với JSON đã extract và đóng các cấu trúc còn thiếu
+                    if last_valid_pos < len(response_text) or brace_count > 0 or bracket_count > 0:
+                        try:
+                            extract_text = response_text[:last_valid_pos] if last_valid_pos < len(response_text) else response_text
+                            
+                            # Đóng arrays
+                            for _ in range(bracket_count):
+                                extract_text += ']'
+                            
+                            # Đóng objects
+                            for _ in range(brace_count):
+                                extract_text += '}'
+                            
+                            result = json.loads(extract_text)
+                        except json.JSONDecodeError as e3:
+                            # Nếu vẫn lỗi, thử parse lại với text gốc đã fix trailing comma
+                            try:
+                                result = json.loads(response_text)
+                            except json.JSONDecodeError:
+                                raise ValueError(
+                                    f"Không thể parse JSON sau nhiều lần thử. "
+                                    f"Lỗi cuối: {e3}\n"
+                                    f"Vị trí: line {error_line or '?'}, column {error_col or '?'}\n"
+                                    f"Response (500 ký tự đầu): {response_text[:500]}\n"
+                                    f"Response (500 ký tự cuối): ...{response_text[-500:]}"
+                                )
+                    else:
+                        # Nếu không tìm được vị trí hợp lệ, thử parse lại với text gốc
+                        try:
+                            result = json.loads(response_text)
+                        except json.JSONDecodeError as e3:
+                            raise ValueError(
+                                f"Không thể parse JSON. Lỗi: {e3}\n"
+                                f"Vị trí: line {error_line or '?'}, column {error_col or '?'}\n"
+                                f"Response (500 ký tự đầu): {response_text[:500]}"
+                            )
             else:
                 raise ValueError(f"Không tìm thấy JSON trong response. Lỗi: {json_error}\nResponse: {response_text[:500]}")
         
